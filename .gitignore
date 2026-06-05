@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env.*
 !.env.example
+.env.keys
+.env.local
+.env.*.local
 
 # IDEs and tools
 .vscode/
@@ -55,3 +58,7 @@ example
 # generated native folders
 /ios
 /android
+
+# Supabase
+.branches
+.temp
