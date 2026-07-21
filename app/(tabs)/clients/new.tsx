@@ -18,6 +18,8 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 
+import { maskPhone } from '@/utils/format';
+
 export default function ClientFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id && id !== 'new';
@@ -36,7 +38,7 @@ export default function ClientFormScreen() {
   useEffect(() => {
     if (existing) {
       setName(existing.name);
-      setPhone(existing.phone ?? '');
+      setPhone(existing.phone ? maskPhone(existing.phone) : '');
       setNotes(existing.notes ?? '');
     }
   }, [existing]);
@@ -44,6 +46,12 @@ export default function ClientFormScreen() {
   async function handleSave() {
     if (!name.trim()) {
       Alert.alert('Atenção', 'O nome do cliente é obrigatório.');
+      return;
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone && cleanPhone.length < 10) {
+      Alert.alert('Atenção', 'Informe um número de telefone válido com DDD (ex: 11 99999-9999).');
       return;
     }
 
@@ -91,8 +99,9 @@ export default function ClientFormScreen() {
           <Input
             label="Telefone / WhatsApp"
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(v) => setPhone(maskPhone(v))}
             placeholder="(11) 99999-9999"
+            maxLength={15}
             keyboardType="phone-pad"
             leftIcon={<Ionicons name="call-outline" size={18} color={colors.textTertiary} />}
             hint="Use o número completo com DDD para o link do WhatsApp."

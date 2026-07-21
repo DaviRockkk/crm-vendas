@@ -20,9 +20,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency } from '@/utils/format';
+import { confirmAction } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
-const STATUS_OPTIONS: SaleStatus[] = ['pendente', 'parcial', 'pago'];
+const STATUS_OPTIONS: SaleStatus[] = ['pendente', 'pago'];
 
 export default function SaleDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,7 +36,9 @@ export default function SaleDetailScreen() {
   const deleteSale = useDeleteSale();
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [newPaidAmount, setNewPaidAmount] = useState('');
+  const [paymentMode, setPaymentMode] = useState<'add' | 'edit'>('add');
+  const [addAmount, setAddAmount] = useState('');
+  const [totalPaidAmount, setTotalPaidAmount] = useState('');
 
   if (isLoading) return <LoadingSpinner fullScreen />;
   if (!sale) return null;
@@ -43,52 +46,86 @@ export default function SaleDetailScreen() {
   const client = (sale as any).clients;
   const overdue = sale.status !== 'pago' && isOverdue(sale.due_date);
 
+  function openModal() {
+    setPaymentMode('add');
+    setAddAmount('');
+    setTotalPaidAmount(maskCurrency(Math.round(sale!.paid_amount * 100).toString()));
+    setShowPaymentModal(true);
+  }
+
   async function handleStatusChange(newStatus: SaleStatus) {
-    await updateSale.mutateAsync({ id, status: newStatus });
+    if (!sale) return;
+    let newPaid = sale.paid_amount;
+    let newDue = sale.due_amount;
+
+    if (newStatus === 'pago') {
+      newPaid = sale.total_amount;
+      newDue = 0;
+    } else if (newStatus === 'pendente') {
+      newPaid = 0;
+      newDue = sale.total_amount;
+    }
+
+    await updateSale.mutateAsync({
+      id,
+      status: newStatus,
+      paid_amount: newPaid,
+      due_amount: newDue,
+    });
   }
 
   async function handleUpdatePayment() {
     if (!sale) return;
-    const amount = parseCurrency(newPaidAmount);
-    if (isNaN(amount) || amount < 0) {
-      Alert.alert('Atenção', 'Informe um valor válido.');
-      return;
+    let finalPaid = 0;
+
+    if (paymentMode === 'add') {
+      const added = parseCurrency(addAmount);
+      if (isNaN(added) || added <= 0) {
+        Alert.alert('Atenção', 'Informe um valor a adicionar válido.');
+        return;
+      }
+      finalPaid = Math.min(sale.total_amount, sale.paid_amount + added);
+    } else {
+      const edited = parseCurrency(totalPaidAmount);
+      if (isNaN(edited) || edited < 0) {
+        Alert.alert('Atenção', 'Informe um valor total pago válido.');
+        return;
+      }
+      finalPaid = Math.min(sale.total_amount, edited);
     }
-    const newDue = Math.max(0, sale.total_amount - amount);
+
+    const newDue = Math.max(0, sale.total_amount - finalPaid);
     const newStatus: SaleStatus =
-      amount >= sale.total_amount ? 'pago' : amount > 0 ? 'parcial' : 'pendente';
+      finalPaid >= sale.total_amount ? 'pago' : finalPaid > 0 ? 'parcial' : 'pendente';
 
     await updateSale.mutateAsync({
       id,
-      paid_amount: amount,
+      paid_amount: finalPaid,
       due_amount: newDue,
       status: newStatus,
     });
     setShowPaymentModal(false);
-    setNewPaidAmount('');
   }
 
   async function handleDelete() {
-    Alert.alert(
-      'Excluir Venda',
-      'Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteSale.mutateAsync(id);
-            router.back();
-          },
-        },
-      ],
-    );
+    confirmAction({
+      title: 'Excluir Venda',
+      message: 'Tem certeza que deseja excluir esta venda? Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+      onConfirm: async () => {
+        await deleteSale.mutateAsync(id);
+        router.back();
+      },
+    });
   }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <Header title="Detalhe da Venda" showBack />
+      <Header
+        title="Detalhe da Venda"
+        showBack
+        onBack={() => router.replace('/(tabs)/sales')}
+      />
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
@@ -137,19 +174,21 @@ export default function SaleDetailScreen() {
                   {formatCurrency(sale.paid_amount)}
                 </Text>
               </View>
-              <View style={[styles.amountCell, { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
-                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }}>RESTANTE</Text>
-                <Text
-                  style={{
-                    color: sale.due_amount > 0 ? colors.error : colors.success,
-                    fontSize: fontSize.xl,
-                    fontWeight: fontWeight.bold,
-                    marginTop: 4,
-                  }}
-                >
-                  {formatCurrency(sale.due_amount)}
-                </Text>
-              </View>
+              {sale.status !== 'pago' && (
+                <View style={[styles.amountCell, { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
+                  <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }}>RESTANTE</Text>
+                  <Text
+                    style={{
+                      color: sale.due_amount > 0 ? colors.error : colors.success,
+                      fontSize: fontSize.xl,
+                      fontWeight: fontWeight.bold,
+                      marginTop: 4,
+                    }}
+                  >
+                    {formatCurrency(sale.due_amount)}
+                  </Text>
+                </View>
+              )}
             </View>
           </Card>
 
@@ -182,36 +221,34 @@ export default function SaleDetailScreen() {
           </Card>
 
           {/* Actions */}
-          {sale.status !== 'pago' && (
-            <Card style={styles.card}>
-              <CardTitle title="Ações Rápidas" />
+          <Card style={styles.card}>
+            <CardTitle title="Ações Rápidas" />
 
-              <Button
-                label="Registrar Pagamento"
-                onPress={() => { setNewPaidAmount(maskCurrency(Math.round(sale.paid_amount * 100).toString())); setShowPaymentModal(true); }}
-                fullWidth
-                icon={<Ionicons name="cash-outline" size={18} color="#FFF" />}
-                style={{ marginBottom: 10 }}
-              />
+            <Button
+              label="Editar / Registrar Pagamento"
+              onPress={openModal}
+              fullWidth
+              icon={<Ionicons name="cash-outline" size={18} color="#FFF" />}
+              style={{ marginBottom: 10 }}
+            />
 
-              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: 8 }}>
-                Alterar status:
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {STATUS_OPTIONS.filter((s) => s !== sale.status).map((s) => (
-                  <Button
-                    key={s}
-                    label={getStatusLabel(s)}
-                    variant={s === 'pago' ? 'primary' : 'outline'}
-                    size="sm"
-                    onPress={() => handleStatusChange(s)}
-                    loading={updateSale.isPending}
-                    style={{ flex: 1 }}
-                  />
-                ))}
-              </View>
-            </Card>
-          )}
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: 8 }}>
+              Alterar status:
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {STATUS_OPTIONS.filter((s) => s !== sale.status).map((s) => (
+                <Button
+                  key={s}
+                  label={s === 'pago' ? 'Marcar como Pago (Total)' : getStatusLabel(s)}
+                  variant={s === 'pago' ? 'primary' : 'outline'}
+                  size="sm"
+                  onPress={() => handleStatusChange(s)}
+                  loading={updateSale.isPending}
+                  style={{ flex: 1 }}
+                />
+              ))}
+            </View>
+          </Card>
 
           {/* Delete */}
           <TouchableOpacity
@@ -229,23 +266,123 @@ export default function SaleDetailScreen() {
       {/* Payment Modal */}
       <Modal visible={showPaymentModal} animationType="slide" presentationStyle="formSheet">
         <View style={[styles.modal, { backgroundColor: colors.surface }]}>
-          <Text style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginBottom: 20 }}>
-            Registrar Pagamento
+          <Text style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginBottom: 16 }}>
+            Registrar / Editar Pagamento
           </Text>
-          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: 4 }}>
-            Total da venda: {formatCurrency(sale.total_amount)}
-          </Text>
-          <TextInput
-            style={[styles.payInput, { borderColor: colors.border, backgroundColor: colors.surfaceSecondary, color: colors.text, borderRadius: radius.md }]}
-            value={newPaidAmount}
-            onChangeText={(v) => setNewPaidAmount(maskCurrency(v))}
-            placeholder="0,00"
-            placeholderTextColor={colors.textTertiary}
-            keyboardType="numeric"
-            autoFocus
-          />
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-            <Button label="Confirmar" onPress={handleUpdatePayment} loading={updateSale.isPending} style={{ flex: 1 }} size="lg" />
+
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+            <TouchableOpacity
+              style={[
+                styles.modeTab,
+                {
+                  borderColor: paymentMode === 'add' ? colors.primary : colors.border,
+                  backgroundColor: paymentMode === 'add' ? colors.primaryLight : colors.surfaceSecondary,
+                },
+              ]}
+              onPress={() => setPaymentMode('add')}
+            >
+              <Text
+                style={{
+                  color: paymentMode === 'add' ? colors.primary : colors.textSecondary,
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.bold,
+                }}
+              >
+                + Adicionar valor
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeTab,
+                {
+                  borderColor: paymentMode === 'edit' ? colors.primary : colors.border,
+                  backgroundColor: paymentMode === 'edit' ? colors.primaryLight : colors.surfaceSecondary,
+                },
+              ]}
+              onPress={() => setPaymentMode('edit')}
+            >
+              <Text
+                style={{
+                  color: paymentMode === 'edit' ? colors.primary : colors.textSecondary,
+                  fontSize: fontSize.sm,
+                  fontWeight: fontWeight.bold,
+                }}
+              >
+                Editar total pago
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={[styles.infoBox, { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md }]}>
+            <View style={styles.infoRow}>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Total da Venda:</Text>
+              <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                {formatCurrency(sale.total_amount)}
+              </Text>
+            </View>
+            <View style={styles.infoRow}>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Já Pago até agora:</Text>
+              <Text style={{ color: colors.success, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                {formatCurrency(sale.paid_amount)}
+              </Text>
+            </View>
+            {sale.due_amount > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Falta Pagar:</Text>
+                <Text style={{ color: colors.error, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                  {formatCurrency(sale.due_amount)}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {paymentMode === 'add' ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+                Valor adicional recebido agora (ex: parcelas, entradas):
+              </Text>
+              <TextInput
+                style={[
+                  styles.payInput,
+                  { borderColor: colors.border, backgroundColor: colors.surfaceSecondary, color: colors.text, borderRadius: radius.md },
+                ]}
+                value={addAmount}
+                onChangeText={(v) => setAddAmount(maskCurrency(v))}
+                placeholder="0,00"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                autoFocus
+              />
+              {parseCurrency(addAmount) > 0 && (
+                <Text style={{ color: colors.primary, fontSize: fontSize.xs, marginTop: 6, fontWeight: fontWeight.medium }}>
+                  Novo Total Pago será:{' '}
+                  {formatCurrency(Math.min(sale.total_amount, sale.paid_amount + parseCurrency(addAmount)))}
+                </Text>
+              )}
+            </View>
+          ) : (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>
+                Ajustar o valor total acumulado já pago:
+              </Text>
+              <TextInput
+                style={[
+                  styles.payInput,
+                  { borderColor: colors.border, backgroundColor: colors.surfaceSecondary, color: colors.text, borderRadius: radius.md },
+                ]}
+                value={totalPaidAmount}
+                onChangeText={(v) => setTotalPaidAmount(maskCurrency(v))}
+                placeholder="0,00"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+                autoFocus
+              />
+            </View>
+          )}
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
+            <Button label="Salvar Pagamento" onPress={handleUpdatePayment} loading={updateSale.isPending} style={{ flex: 1 }} size="lg" />
             <Button label="Cancelar" variant="outline" onPress={() => setShowPaymentModal(false)} style={{ flex: 1 }} size="lg" />
           </View>
         </View>
@@ -274,4 +411,21 @@ const styles = StyleSheet.create({
   },
   modal: { flex: 1, padding: 24, paddingTop: 40 },
   payInput: { borderWidth: 1.5, padding: 14, fontSize: 18, marginTop: 8 },
+  modeTab: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  infoBox: {
+    padding: 12,
+    gap: 6,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
 });

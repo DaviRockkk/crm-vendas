@@ -49,17 +49,22 @@ export function formatDateTime(dateStr: string | null | undefined): string {
   return date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Mascara dinamica de telefone BR (ex: (11) 99999-9999 ou (11) 3333-4444)
+export function maskPhone(input: string): string {
+  const digits = input.replace(/\D/g, '').slice(0, 11);
+  if (!digits) return '';
+  if (digits.length <= 2) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 // Formata telefone brasileiro (ex: (11) 99999-9999)
 export function formatPhone(phone: string | null | undefined): string {
   if (!phone) return '';
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 11) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  }
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-  }
-  return phone;
+  return maskPhone(phone);
 }
 
 // Gera URL do WhatsApp a partir do telefone

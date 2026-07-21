@@ -9,6 +9,7 @@ import { Header } from '@/components/ui/Header';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { confirmAction } from '@/utils/alert';
 
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,21 +24,15 @@ export default function ProductDetailScreen() {
   if (!product) return null;
 
   async function handleDelete() {
-    Alert.alert(
-      'Excluir Produto',
-      `Excluir "${product!.name}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteProduct.mutateAsync(id);
-            router.back();
-          },
-        },
-      ],
-    );
+    confirmAction({
+      title: 'Excluir Produto',
+      message: `Excluir "${product!.name}"?`,
+      confirmText: 'Excluir',
+      onConfirm: async () => {
+        await deleteProduct.mutateAsync(id);
+        router.back();
+      },
+    });
   }
 
   return (
@@ -45,6 +40,7 @@ export default function ProductDetailScreen() {
       <Header
         title="Detalhe do Produto"
         showBack
+        onBack={() => router.replace('/(tabs)/products')}
         right={
           <TouchableOpacity
             style={[styles.editBtn, { backgroundColor: colors.primaryLight }]}

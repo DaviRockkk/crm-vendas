@@ -21,6 +21,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDate, getWhatsAppUrl } from '@/utils/format';
+import { confirmAction } from '@/utils/alert';
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,21 +44,15 @@ export default function ClientDetailScreen() {
 
   async function handleDelete() {
     if (!client) return;
-    Alert.alert(
-      'Excluir Cliente',
-      `Tem certeza que deseja excluir "${client.name}"? Todas as vendas associadas também serão removidas.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteClient.mutateAsync(id);
-            router.back();
-          },
-        },
-      ],
-    );
+    confirmAction({
+      title: 'Excluir Cliente',
+      message: `Tem certeza que deseja excluir "${client.name}"? Todas as vendas associadas também serão removidas.`,
+      confirmText: 'Excluir',
+      onConfirm: async () => {
+        await deleteClient.mutateAsync(id);
+        router.back();
+      },
+    });
   }
 
   const initials = client.name
@@ -72,6 +67,7 @@ export default function ClientDetailScreen() {
       <Header
         title="Detalhe do Cliente"
         showBack
+        onBack={() => router.replace('/(tabs)/clients')}
         right={
           <TouchableOpacity
             style={[styles.editBtn, { backgroundColor: colors.primaryLight }]}

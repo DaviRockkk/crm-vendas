@@ -9,10 +9,11 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   showBack?: boolean;
+  onBack?: () => void;
   right?: React.ReactNode;
 }
 
-export function Header({ title, subtitle, showBack = false, right }: HeaderProps) {
+export function Header({ title, subtitle, showBack = false, onBack, right }: HeaderProps) {
   const { colors, fontSize, fontWeight } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -32,7 +33,7 @@ export function Header({ title, subtitle, showBack = false, right }: HeaderProps
         {showBack && (
           <TouchableOpacity
             style={[styles.backBtn, { backgroundColor: colors.surfaceSecondary }]}
-            onPress={() => router.back()}
+            onPress={onBack ? onBack : () => router.back()}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />

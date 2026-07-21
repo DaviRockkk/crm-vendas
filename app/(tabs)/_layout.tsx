@@ -41,6 +41,12 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="clients"
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('clients', { screen: 'index' });
+          },
+        })}
         options={{
           title: 'Clientes',
           tabBarIcon: ({ color, focused }) => (
@@ -54,6 +60,12 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="sales"
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('sales', { screen: 'index' });
+          },
+        })}
         options={{
           title: 'Vendas',
           tabBarIcon: ({ color, focused }) => (
@@ -67,6 +79,12 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="products"
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('products', { screen: 'index' });
+          },
+        })}
         options={{
           title: 'Produtos',
           tabBarIcon: ({ color, focused }) => (
