@@ -1,23 +1,31 @@
 {
   "expo": {
-    "name": "crm-vendas",
+    "name": "CRM Vendas",
     "slug": "crm-vendas",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "crmvendas",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.crmvendas.app"
     },
     "android": {
+      "package": "com.crmvendas.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#4F46E5",
+        "foregroundImage": "./assets/images/adaptive-icon.png"
       },
-      "predictiveBackGestureEnabled": false
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.SCHEDULE_EXACT_ALARM",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -31,9 +39,24 @@
         {
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#4F46E5"
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#4F46E5",
+          "defaultChannel": "crm-vendas"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O CRM Vendas precisa acessar suas fotos para adicionar imagens aos produtos."
+        }
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

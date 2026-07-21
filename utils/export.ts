@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { supabase } from '@/lib/supabase';
 
@@ -12,7 +12,7 @@ export async function exportAllDataAsJSON(): Promise<void> {
     supabase.from('clients').select('*').eq('user_id', user.id),
     supabase.from('products').select('*').eq('user_id', user.id),
     supabase.from('sales').select('*').eq('user_id', user.id),
-    supabase.from('sale_items').select('*, sales!inner(user_id)').eq('sales.user_id', user.id),
+    supabase.from('sale_items').select('*'),
   ]);
 
   const exportData = {
@@ -28,16 +28,17 @@ export async function exportAllDataAsJSON(): Promise<void> {
 
   const json = JSON.stringify(exportData, null, 2);
   const fileName = `crm-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
-  await FileSystem.writeAsStringAsync(filePath, json, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  // Use new expo-file-system File API
+  const file = new File(Paths.cache, fileName);
+  const writer = file.writableStream().getWriter();
+  await writer.write(new TextEncoder().encode(json));
+  await writer.close();
 
   const isAvailable = await Sharing.isAvailableAsync();
   if (!isAvailable) throw new Error('Compartilhamento não disponível neste dispositivo');
 
-  await Sharing.shareAsync(filePath, {
+  await Sharing.shareAsync(file.uri, {
     mimeType: 'application/json',
     dialogTitle: 'Exportar Backup CRM',
     UTI: 'public.json',
@@ -79,16 +80,16 @@ export async function exportAllDataAsCSV(): Promise<void> {
 
   const csv = sections.join('');
   const fileName = `crm-backup-${new Date().toISOString().slice(0, 10)}.csv`;
-  const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
-  await FileSystem.writeAsStringAsync(filePath, csv, {
-    encoding: FileSystem.EncodingType.UTF8,
-  });
+  const file = new File(Paths.cache, fileName);
+  const writer = file.writableStream().getWriter();
+  await writer.write(new TextEncoder().encode(csv));
+  await writer.close();
 
   const isAvailable = await Sharing.isAvailableAsync();
   if (!isAvailable) throw new Error('Compartilhamento não disponível neste dispositivo');
 
-  await Sharing.shareAsync(filePath, {
+  await Sharing.shareAsync(file.uri, {
     mimeType: 'text/csv',
     dialogTitle: 'Exportar Dados como CSV',
     UTI: 'public.comma-separated-values-text',
