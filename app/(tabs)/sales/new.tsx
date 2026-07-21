@@ -12,7 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCreateSale } from '@/hooks/useSales';
@@ -24,10 +24,11 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate } from '@/utils/format';
 import type { NewSaleItem, SaleStatus, Client, Product } from '@/types';
 
 export default function NewSaleScreen() {
+  const { clientId } = useLocalSearchParams<{ clientId?: string }>();
   const { colors, radius, fontSize, fontWeight } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -37,9 +38,16 @@ export default function NewSaleScreen() {
   const createSale = useCreateSale();
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  React.useEffect(() => {
+    if (clientId && clients.length > 0 && !selectedClient) {
+      const found = clients.find((c) => c.id === clientId);
+      if (found) setSelectedClient(found);
+    }
+  }, [clientId, clients]);
   const [items, setItems] = useState<NewSaleItem[]>([]);
   const [paidAmount, setPaidAmount] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [dueDate, setDueDate] = useState(getDefaultDueDate());
   const [status, setStatus] = useState<SaleStatus>('pendente');
 
   // Modal states
@@ -57,7 +65,7 @@ export default function NewSaleScreen() {
   } | null>(null);
 
   const totalAmount = items.reduce((acc, i) => acc + i.unit_price * i.quantity, 0);
-  const parsedPaid = parseFloat(paidAmount.replace(',', '.')) || 0;
+  const parsedPaid = parseCurrency(paidAmount);
   const dueAmount = Math.max(0, totalAmount - parsedPaid);
   const autoStatus: SaleStatus = parsedPaid >= totalAmount && totalAmount > 0
     ? 'pago'
@@ -73,7 +81,7 @@ export default function NewSaleScreen() {
     setEditingItem({
       product_id: product.id,
       product_name: product.name,
-      unit_price: product.default_price.toString(),
+      unit_price: maskCurrency(Math.round(product.default_price * 100).toString()),
       quantity: '1',
     });
     setShowProductModal(false);
@@ -85,10 +93,10 @@ export default function NewSaleScreen() {
       Alert.alert('Atenção', 'Informe o nome do produto.');
       return;
     }
-    const price = parseFloat(editingItem.unit_price.replace(',', '.'));
+    const price = parseCurrency(editingItem.unit_price);
     const qty = parseInt(editingItem.quantity, 10);
-    if (isNaN(price) || price < 0) {
-      Alert.alert('Atenção', 'Informe um preço válido.');
+    if (isNaN(price) || price <= 0) {
+      Alert.alert('Atenção', 'Informe um preço unitário válido.');
       return;
     }
     if (isNaN(qty) || qty < 1) {
@@ -243,9 +251,9 @@ export default function NewSaleScreen() {
                     <Input
                       label="Preço unit. (R$)"
                       value={editingItem.unit_price}
-                      onChangeText={(v) => setEditingItem((e) => e ? { ...e, unit_price: v } : e)}
+                      onChangeText={(v) => setEditingItem((e) => e ? { ...e, unit_price: maskCurrency(v) } : e)}
                       placeholder="0,00"
-                      keyboardType="decimal-pad"
+                      keyboardType="numeric"
                       containerStyle={{ marginBottom: 0 }}
                     />
                   </View>
@@ -298,9 +306,9 @@ export default function NewSaleScreen() {
             <Input
               label="Valor pago (R$)"
               value={paidAmount}
-              onChangeText={setPaidAmount}
+              onChangeText={(v) => setPaidAmount(maskCurrency(v))}
               placeholder="0,00"
-              keyboardType="decimal-pad"
+              keyboardType="numeric"
               leftIcon={<Ionicons name="cash-outline" size={18} color={colors.textTertiary} />}
             />
 

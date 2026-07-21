@@ -6,6 +6,35 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+// Mascara dinamica de moeda (ex: digita 3,5,0,0 -> "35,00")
+export function maskCurrency(input: string): string {
+  const digits = input.replace(/\D/g, '');
+  if (!digits) return '';
+  const cents = parseInt(digits, 10);
+  const numeric = cents / 100;
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(numeric);
+}
+
+// Converte string mascarada ou digitada para number float (ex: "35,00" -> 35.00)
+export function parseCurrency(input: string): number {
+  const digits = input.replace(/\D/g, '');
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+}
+
+// Retorna a data de daqui a 1 mês em formato YYYY-MM-DD
+export function getDefaultDueDate(): string {
+  const date = new Date();
+  date.setMonth(date.getMonth() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Formata data para pt-BR (ex: 20/07/2026)
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';

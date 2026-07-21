@@ -21,6 +21,7 @@ import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { maskCurrency, parseCurrency } from '@/utils/format';
 
 export default function ProductFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -42,7 +43,7 @@ export default function ProductFormScreen() {
   useEffect(() => {
     if (existing) {
       setName(existing.name);
-      setPrice(existing.default_price.toString());
+      setPrice(maskCurrency(Math.round(existing.default_price * 100).toString()));
       setPhotoUrl(existing.photo_url ?? null);
     }
   }, [existing]);
@@ -77,9 +78,9 @@ export default function ProductFormScreen() {
       Alert.alert('Atenção', 'O nome do produto é obrigatório.');
       return;
     }
-    const parsedPrice = parseFloat(price.replace(',', '.'));
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      Alert.alert('Atenção', 'Informe um preço válido.');
+    const parsedPrice = parseCurrency(price);
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      Alert.alert('Atenção', 'Informe um preço válido maior que zero.');
       return;
     }
 
@@ -157,7 +158,7 @@ export default function ProductFormScreen() {
             label="Nome do Produto *"
             value={name}
             onChangeText={setName}
-            placeholder="Ex: Camisa Polo Branca"
+            placeholder="Ex: Egeo Bomb Black"
             autoCapitalize="words"
             leftIcon={<Ionicons name="cube-outline" size={18} color={colors.textTertiary} />}
           />
@@ -165,9 +166,9 @@ export default function ProductFormScreen() {
           <Input
             label="Preço Padrão (R$) *"
             value={price}
-            onChangeText={setPrice}
+            onChangeText={(v) => setPrice(maskCurrency(v))}
             placeholder="0,00"
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
             leftIcon={<Ionicons name="cash-outline" size={18} color={colors.textTertiary} />}
             hint="Este valor pode ser alterado individualmente em cada venda."
           />

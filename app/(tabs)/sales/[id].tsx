@@ -19,7 +19,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency } from '@/utils/format';
 import type { SaleStatus } from '@/types';
 
 const STATUS_OPTIONS: SaleStatus[] = ['pendente', 'parcial', 'pago'];
@@ -49,7 +49,7 @@ export default function SaleDetailScreen() {
 
   async function handleUpdatePayment() {
     if (!sale) return;
-    const amount = parseFloat(newPaidAmount.replace(',', '.'));
+    const amount = parseCurrency(newPaidAmount);
     if (isNaN(amount) || amount < 0) {
       Alert.alert('Atenção', 'Informe um valor válido.');
       return;
@@ -188,7 +188,7 @@ export default function SaleDetailScreen() {
 
               <Button
                 label="Registrar Pagamento"
-                onPress={() => { setNewPaidAmount(sale.paid_amount.toString()); setShowPaymentModal(true); }}
+                onPress={() => { setNewPaidAmount(maskCurrency(Math.round(sale.paid_amount * 100).toString())); setShowPaymentModal(true); }}
                 fullWidth
                 icon={<Ionicons name="cash-outline" size={18} color="#FFF" />}
                 style={{ marginBottom: 10 }}
@@ -238,10 +238,10 @@ export default function SaleDetailScreen() {
           <TextInput
             style={[styles.payInput, { borderColor: colors.border, backgroundColor: colors.surfaceSecondary, color: colors.text, borderRadius: radius.md }]}
             value={newPaidAmount}
-            onChangeText={setNewPaidAmount}
-            placeholder="Valor pago"
+            onChangeText={(v) => setNewPaidAmount(maskCurrency(v))}
+            placeholder="0,00"
             placeholderTextColor={colors.textTertiary}
-            keyboardType="decimal-pad"
+            keyboardType="numeric"
             autoFocus
           />
           <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>

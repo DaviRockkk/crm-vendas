@@ -26,25 +26,62 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<'login' | 'signup'>('login');
 
+  const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
+  function showAlert(title: string, message: string, onOk?: () => void) {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n${message}`);
+      if (onOk) onOk();
+    } else {
+      Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
+    }
+  }
+
   async function handleSubmit() {
+    setFeedback(null);
     if (!email.trim() || !password.trim()) {
-      Alert.alert('Atenção', 'Preencha o e-mail e a senha.');
+      setFeedback({ type: 'error', text: 'Preencha o e-mail e a senha.' });
       return;
     }
+
+    if (mode === 'signup' && password.length < 6) {
+      setFeedback({ type: 'error', text: 'A senha para cadastro deve ter no mínimo 6 caracteres.' });
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password: password.trim(),
+        });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password: password.trim(),
+        });
         if (error) throw error;
-        Alert.alert('Conta criada!', 'Verifique seu e-mail para confirmar o cadastro.', [
-          { text: 'OK', onPress: () => setMode('login') },
-        ]);
+
+        if (!data.session) {
+          // Tentar login automático se o Supabase não abriu sessão imediatamente
+          const { error: signInError } = await supabase.auth.signInWithPassword({
+            email: email.trim(),
+            password: password.trim(),
+          });
+          if (signInError) {
+            setFeedback({ type: 'success', text: 'Conta criada com sucesso!' });
+            setMode('login');
+            return;
+          }
+        }
+        setFeedback({ type: 'success', text: 'Conta criada com sucesso!' });
       }
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Ocorreu um erro. Tente novamente.');
+      const errMsg = e.message ?? 'Ocorreu um erro no servidor Supabase. Tente novamente.';
+      setFeedback({ type: 'error', text: errMsg });
+      showAlert('Erro', errMsg);
     } finally {
       setLoading(false);
     }
@@ -102,10 +139,44 @@ export default function LoginScreen() {
               : 'Comece a gerenciar seus negócios'}
           </Text>
 
+          {/* Banner de Feedback (Erro ou Sucesso) embutido no formulário */}
+          {feedback && (
+            <View
+              style={[
+                styles.feedbackBox,
+                {
+                  backgroundColor: feedback.type === 'error' ? colors.errorLight : colors.successLight,
+                  borderColor: feedback.type === 'error' ? colors.error : colors.success,
+                  borderRadius: radius.md,
+                },
+              ]}
+            >
+              <Ionicons
+                name={feedback.type === 'error' ? 'alert-circle' : 'checkmark-circle'}
+                size={20}
+                color={feedback.type === 'error' ? colors.error : colors.success}
+              />
+              <Text
+                style={[
+                  styles.feedbackText,
+                  {
+                    color: feedback.type === 'error' ? colors.errorText : colors.successText,
+                    fontSize: fontSize.sm,
+                  },
+                ]}
+              >
+                {feedback.text}
+              </Text>
+            </View>
+          )}
+
           <Input
             label="E-mail"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => {
+              setEmail(v);
+              setFeedback(null);
+            }}
             placeholder="seu@email.com"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -116,8 +187,11 @@ export default function LoginScreen() {
           <Input
             label="Senha"
             value={password}
-            onChangeText={setPassword}
-            placeholder="Sua senha"
+            onChangeText={(v) => {
+              setPassword(v);
+              setFeedback(null);
+            }}
+            placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 6 caracteres'}
             secureTextEntry={!showPassword}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             leftIcon={<Ionicons name="lock-closed-outline" size={18} color={colors.textTertiary} />}
@@ -132,7 +206,7 @@ export default function LoginScreen() {
           />
 
           <Button
-            label={mode === 'login' ? 'Entrar' : 'Criar Conta'}
+            label={loading ? (mode === 'login' ? 'Entrando...' : 'Criando conta...') : (mode === 'login' ? 'Entrar' : 'Criar Conta')}
             onPress={handleSubmit}
             loading={loading}
             fullWidth
@@ -147,7 +221,10 @@ export default function LoginScreen() {
                 : 'Já tem conta? Entrar'
             }
             variant="ghost"
-            onPress={() => setMode((m) => (m === 'login' ? 'signup' : 'login'))}
+            onPress={() => {
+              setFeedback(null);
+              setMode((m) => (m === 'login' ? 'signup' : 'login'));
+            }}
             fullWidth
           />
         </ScrollView>
@@ -201,6 +278,18 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   formSubtitle: {
-    marginBottom: 28,
+    marginBottom: 20,
+  },
+  feedbackBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+    gap: 10,
+  },
+  feedbackText: {
+    flex: 1,
+    lineHeight: 18,
   },
 });

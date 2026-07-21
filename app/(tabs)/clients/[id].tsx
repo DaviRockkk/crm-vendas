@@ -19,7 +19,8 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatCurrency, formatDate, formatPhone, getWhatsAppUrl } from '@/utils/format';
+import { Button } from '@/components/ui/Button';
+import { formatCurrency, formatDate, getWhatsAppUrl } from '@/utils/format';
 
 export default function ClientDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -107,16 +108,7 @@ export default function ClientDetailScreen() {
                 onPress={() => Linking.openURL(whatsappUrl)}
               >
                 <Ionicons name="logo-whatsapp" size={18} color="#FFF" />
-                <Text style={styles.actionBtnText}>WhatsApp</Text>
-              </TouchableOpacity>
-            )}
-            {client.phone && (
-              <TouchableOpacity
-                style={[styles.actionBtn, { backgroundColor: colors.primary }]}
-                onPress={() => Linking.openURL(`tel:${client.phone}`)}
-              >
-                <Ionicons name="call" size={18} color="#FFF" />
-                <Text style={styles.actionBtnText}>{formatPhone(client.phone)}</Text>
+                <Text style={styles.actionBtnText}>Conversar no WhatsApp</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -169,13 +161,35 @@ export default function ClientDetailScreen() {
           {/* Sales History */}
           <Card style={StyleSheet.flatten([styles.card, { padding: 0 }])} noPadding>
             <View style={{ padding: 16, paddingBottom: 0 }}>
-              <CardTitle title="Histórico de Vendas" subtitle={`${sales.length} venda(s)`} />
+              <CardTitle
+                title="Histórico de Vendas"
+                subtitle={`${sales.length} venda(s)`}
+                right={
+                  <TouchableOpacity
+                    style={[styles.quickSaleBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
+                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
+                  >
+                    <Ionicons name="add" size={16} color="#FFF" />
+                    <Text style={[styles.quickSaleText, { fontSize: fontSize.xs, fontWeight: fontWeight.semibold }]}>
+                      Nova Venda
+                    </Text>
+                  </TouchableOpacity>
+                }
+              />
             </View>
             {sales.length === 0 ? (
               <EmptyState
                 icon="receipt-outline"
                 title="Sem vendas"
                 description="Este cliente ainda não possui vendas registradas."
+                action={
+                  <Button
+                    label="Registrar Venda para este Cliente"
+                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
+                    size="sm"
+                    style={{ marginTop: 8 }}
+                  />
+                }
               />
             ) : (
               sales.map((sale, i) => (
@@ -276,6 +290,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  quickSaleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 4,
+  },
+  quickSaleText: {
+    color: '#FFF',
   },
   deleteBtn: {
     flexDirection: 'row',
