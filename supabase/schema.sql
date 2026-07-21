@@ -108,9 +108,7 @@ on conflict (id) do nothing;
 create policy "products_storage_upload" on storage.objects for insert with check (
   bucket_id = 'products' and auth.uid() is not null
 );
-create policy "products_storage_select" on storage.objects for select using (
-  bucket_id = 'products'
-);
+-- Nota: Como o bucket 'products' é público (public = true), a leitura de imagens não necessita de RLS de SELECT no storage.objects.
 create policy "products_storage_delete" on storage.objects for delete using (
   bucket_id = 'products' and auth.uid() is not null
 );
@@ -118,7 +116,8 @@ create policy "products_storage_delete" on storage.objects for delete using (
 -- ==================== VIEWS ====================
 
 -- Client totals view (for dashboard top debtors)
-create or replace view public.client_totals as
+create or replace view public.client_totals
+with (security_invoker = true) as
 select
   c.id,
   c.user_id,
