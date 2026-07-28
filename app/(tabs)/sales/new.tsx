@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate } from '@/utils/format';
+import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate, getInstallmentDueDates, formatDate } from '@/utils/format';
 import type { NewSaleItem, SaleStatus, Client, Product } from '@/types';
 
 export default function NewSaleScreen() {
@@ -47,6 +47,7 @@ export default function NewSaleScreen() {
   }, [clientId, clients]);
   const [items, setItems] = useState<NewSaleItem[]>([]);
   const [paidAmount, setPaidAmount] = useState('');
+  const [installments, setInstallments] = useState<number>(1);
   const [dueDate, setDueDate] = useState(getDefaultDueDate());
   const [status, setStatus] = useState<SaleStatus>('pendente');
 
@@ -140,6 +141,7 @@ export default function NewSaleScreen() {
         paid_amount: parsedPaid,
         due_amount: dueAmount,
         due_date: dueDate.trim() || null,
+        installments,
         status: autoStatus,
         items,
       });
@@ -292,7 +294,7 @@ export default function NewSaleScreen() {
           {/* Payment */}
           <Card style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 12 }]}>
-              PAGAMENTO
+              PAGAMENTO E PARCELAMENTO
             </Text>
 
             {/* Total display */}
@@ -303,8 +305,75 @@ export default function NewSaleScreen() {
               </Text>
             </View>
 
+            {/* Installments selector (1x a 6x sem juros) */}
+            <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, marginBottom: 8 }}>
+              Opções de Parcelamento (sem juros)
+            </Text>
+            <View style={styles.installmentsGrid}>
+              {[1, 2, 3, 4, 5, 6].map((num) => {
+                const isSelected = installments === num;
+                const isMostCommon = num === 3;
+                return (
+                  <TouchableOpacity
+                    key={num}
+                    style={[
+                      styles.installmentChip,
+                      {
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: isSelected ? colors.primaryLight : colors.surfaceSecondary,
+                        borderRadius: radius.md,
+                      },
+                    ]}
+                    onPress={() => {
+                      setInstallments(num);
+                      setDueDate(getInstallmentDueDates(num)[0]);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isSelected ? colors.primary : colors.text,
+                        fontSize: fontSize.sm,
+                        fontWeight: isSelected ? fontWeight.bold : fontWeight.medium,
+                      }}
+                    >
+                      {num === 1 ? 'À vista (1x)' : `${num}x`}
+                    </Text>
+                    {isMostCommon && (
+                      <View style={[styles.popularBadge, { backgroundColor: isSelected ? colors.primary : colors.warning }]}>
+                        <Text style={{ color: '#FFF', fontSize: 9, fontWeight: fontWeight.bold }}>
+                          Mais comum
+                        </Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Breakdown of installments */}
+            {totalAmount > 0 && installments > 1 && (
+              <View style={[styles.installmentsBreakdown, { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderColor: colors.border }]}>
+                <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold, marginBottom: 6 }}>
+                  {installments}x de {formatCurrency(totalAmount / installments)} sem juros
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 8 }}>
+                  Vencimentos (sempre dia 05 do mês):
+                </Text>
+                {getInstallmentDueDates(installments).map((dueDateStr, idx) => (
+                  <View key={idx} style={styles.installmentRow}>
+                    <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.medium }}>
+                      Parcela {idx + 1}/{installments} ({formatCurrency(totalAmount / installments)})
+                    </Text>
+                    <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                      {formatDate(dueDateStr)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Input
-              label="Valor pago (R$)"
+              label="Valor pago no momento (R$)"
               value={paidAmount}
               onChangeText={(v) => setPaidAmount(maskCurrency(v))}
               placeholder="0,00"
@@ -313,12 +382,12 @@ export default function NewSaleScreen() {
             />
 
             <Input
-              label="Data de vencimento"
+              label="Data de vencimento (primeira parcela)"
               value={dueDate}
               onChangeText={setDueDate}
-              placeholder="AAAA-MM-DD"
+              placeholder="AAAA-MM-05"
               leftIcon={<Ionicons name="calendar-outline" size={18} color={colors.textTertiary} />}
-              hint="Ex: 2026-08-15"
+              hint="Vencimento padrão sempre no dia 5 de cada mês"
             />
 
             {totalAmount > 0 && (
@@ -327,7 +396,7 @@ export default function NewSaleScreen() {
                 <Badge status={autoStatus} />
                 {dueAmount > 0 && (
                   <Text style={{ color: colors.error, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, marginTop: 4 }}>
-                    Restante: {formatCurrency(dueAmount)}
+                    Restante a receber: {formatCurrency(dueAmount)}
                   </Text>
                 )}
               </View>
@@ -456,6 +525,40 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     marginBottom: 14,
+  },
+  installmentsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  installmentChip: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    minWidth: 54,
+  },
+  popularBadge: {
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    marginTop: 2,
+  },
+  installmentsBreakdown: {
+    padding: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  installmentRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   statusPreview: {
     padding: 12,

@@ -25,14 +25,45 @@ export function parseCurrency(input: string): number {
   return parseInt(digits, 10) / 100;
 }
 
-// Retorna a data de daqui a 1 mês em formato YYYY-MM-DD
-export function getDefaultDueDate(): string {
-  const date = new Date();
-  date.setMonth(date.getMonth() + 1);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// Retorna o próximo dia 5 no formato YYYY-MM-05 (sempre dia 5 de cada mês)
+export function getDefaultDueDate(referenceDate: Date = new Date()): string {
+  const date = new Date(referenceDate);
+  const currentDay = date.getDate();
+  let targetYear = date.getFullYear();
+  let targetMonth = date.getMonth(); // 0-indexed
+
+  if (currentDay > 5) {
+    targetMonth += 1;
+    if (targetMonth > 11) {
+      targetMonth = 0;
+      targetYear += 1;
+    }
+  }
+
+  const monthStr = String(targetMonth + 1).padStart(2, '0');
+  return `${targetYear}-${monthStr}-05`;
+}
+
+// Retorna uma lista de datas de vencimento no dia 5 para N parcelas
+export function getInstallmentDueDates(count: number = 1, referenceDate: Date = new Date()): string[] {
+  const dates: string[] = [];
+  const date = new Date(referenceDate);
+  const currentDay = date.getDate();
+  let startYear = date.getFullYear();
+  let startMonth = date.getMonth();
+
+  if (currentDay > 5) {
+    startMonth += 1;
+  }
+
+  for (let i = 0; i < count; i++) {
+    const targetDate = new Date(startYear, startMonth + i, 5);
+    const y = targetDate.getFullYear();
+    const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+    dates.push(`${y}-${m}-05`);
+  }
+
+  return dates;
 }
 
 // Formata data para pt-BR (ex: 20/07/2026)

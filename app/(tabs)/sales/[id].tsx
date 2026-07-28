@@ -19,7 +19,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
@@ -160,6 +160,17 @@ export default function SaleDetailScreen() {
               Criada em {formatDate(sale.created_at)}
               {sale.due_date ? ` · Vence ${formatDate(sale.due_date)}` : ''}
             </Text>
+
+            {sale.installments && sale.installments > 1 && (
+              <View style={{ marginTop: 10, padding: 10, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md }}>
+                <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                  Parcelado em {sale.installments}x sem juros (Vencimento todo dia 05)
+                </Text>
+                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                  Valor da Parcela: {formatCurrency(sale.total_amount / sale.installments)}
+                </Text>
+              </View>
+            )}
 
             <View style={[styles.amountsGrid, { borderTopColor: colors.border, marginTop: 16 }]}>
               <View style={styles.amountCell}>

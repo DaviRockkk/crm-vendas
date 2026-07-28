@@ -56,7 +56,9 @@
           "photosPermission": "O CRM Vendas precisa acessar suas fotos para adicionar imagens aos produtos."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-sharing",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

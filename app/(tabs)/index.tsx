@@ -18,7 +18,9 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatCurrency, formatDate } from '@/utils/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CHART_WIDTH = SCREEN_WIDTH - 64;
+const CARD_INNER_WIDTH = SCREEN_WIDTH - 64;
+const LINE_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 56);
+const BAR_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 36);
 
 export default function DashboardScreen() {
   const { colors, fontSize, fontWeight, radius } = useTheme();
@@ -110,36 +112,39 @@ export default function DashboardScreen() {
         {lineData.length > 0 && (
           <Card style={styles.chartCard}>
             <CardTitle title="Recebimentos no Mês" subtitle="Por dia" />
-            <LineChart
-              data={lineData}
-              width={CHART_WIDTH}
-              height={160}
-              color={colors.chartBlue}
-              thickness={2.5}
-              dataPointsColor={colors.chartBlue}
-              startFillColor={colors.chartBlue}
-              endFillColor={colors.chartBlue + '10'}
-              startOpacity={0.25}
-              endOpacity={0.02}
-              areaChart
-              curved
-              hideDataPoints={lineData.length > 10}
-              xAxisColor={colors.border}
-              yAxisColor={colors.border}
-              yAxisTextStyle={{ color: colors.textTertiary, fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: colors.textTertiary, fontSize: 9 }}
-              rulesColor={colors.border}
-              rulesType="solid"
-              noOfSections={4}
-              hideRules={false}
-              showYAxisIndices={false}
-              yAxisLabelWidth={52}
-              formatYLabel={(v) => {
-                const n = Number(v);
-                if (n >= 1000) return `R$${(n / 1000).toFixed(0)}K`;
-                return `R$${n}`;
-              }}
-            />
+            <View style={{ overflow: 'hidden', width: '100%' }}>
+              <LineChart
+                data={lineData}
+                width={LINE_CHART_WIDTH}
+                height={160}
+                color={colors.chartBlue}
+                thickness={2.5}
+                dataPointsColor={colors.chartBlue}
+                startFillColor={colors.chartBlue}
+                endFillColor={colors.chartBlue + '10'}
+                startOpacity={0.25}
+                endOpacity={0.02}
+                areaChart
+                curved
+                hideDataPoints={lineData.length > 10}
+                xAxisColor={colors.border}
+                yAxisColor={colors.border}
+                yAxisTextStyle={{ color: colors.textTertiary, fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: colors.textTertiary, fontSize: 9 }}
+                rulesColor={colors.border}
+                rulesType="solid"
+                rulesLength={LINE_CHART_WIDTH}
+                noOfSections={4}
+                hideRules={false}
+                showYAxisIndices={false}
+                yAxisLabelWidth={52}
+                formatYLabel={(v) => {
+                  const n = Number(v);
+                  if (n >= 1000) return `R$${(n / 1000).toFixed(0)}K`;
+                  return `R$${n}`;
+                }}
+              />
+            </View>
           </Card>
         )}
 
@@ -182,25 +187,29 @@ export default function DashboardScreen() {
         {barData.length > 0 && (
           <Card style={styles.chartCard}>
             <CardTitle title="Produtos Mais Vendidos" subtitle="Top 5 por quantidade" />
-            <BarChart
-              data={barData}
-              width={CHART_WIDTH}
-              height={160}
-              barWidth={Math.max(24, (CHART_WIDTH / (barData.length * 2)))}
-              spacing={Math.max(12, (CHART_WIDTH / (barData.length * 3)))}
-              roundedTop
-              roundedBottom={false}
-              frontColor={colors.chartBlue}
-              gradientColor={colors.chartPurple}
-              showGradient
-              xAxisColor={colors.border}
-              yAxisColor={colors.border}
-              yAxisTextStyle={{ color: colors.textTertiary, fontSize: 10 }}
-              xAxisLabelTextStyle={{ color: colors.textTertiary, fontSize: 9 }}
-              rulesColor={colors.border}
-              noOfSections={4}
-              yAxisLabelWidth={28}
-            />
+            <View style={{ overflow: 'hidden', width: '100%' }}>
+              <BarChart
+                data={barData}
+                width={BAR_CHART_WIDTH}
+                height={160}
+                barWidth={Math.min(28, Math.max(16, Math.floor(BAR_CHART_WIDTH / Math.max(1, barData.length * 2))))}
+                spacing={Math.max(10, Math.floor((BAR_CHART_WIDTH - barData.length * 24) / Math.max(1, barData.length + 1)))}
+                roundedTop
+                roundedBottom={false}
+                frontColor={colors.chartBlue}
+                gradientColor={colors.chartPurple}
+                showGradient
+                xAxisColor={colors.border}
+                yAxisColor={colors.border}
+                yAxisTextStyle={{ color: colors.textTertiary, fontSize: 10 }}
+                xAxisLabelTextStyle={{ color: colors.textTertiary, fontSize: 9 }}
+                rulesColor={colors.border}
+                rulesLength={BAR_CHART_WIDTH}
+                noOfSections={4}
+                yAxisLabelWidth={28}
+                initialSpacing={12}
+              />
+            </View>
           </Card>
         )}
 
