@@ -126,6 +126,7 @@ export function useCreateSale() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
@@ -167,6 +168,7 @@ export function useUpdateSale() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
       qc.invalidateQueries({ queryKey: [QUERY_KEY, data.id] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
@@ -182,6 +184,7 @@ export function useDeleteSale() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: [QUERY_KEY] });
+      qc.invalidateQueries({ queryKey: ['clients'] });
       qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });

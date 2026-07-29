@@ -10,17 +10,17 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart, PieChart, BarChart } from 'react-native-gifted-charts';
+import { PieChart, BarChart } from 'react-native-gifted-charts';
 import { useDashboard } from '@/hooks/useDashboard';
 import { useTheme } from '@/hooks/useTheme';
 import { StatCard } from '@/components/ui/StatCard';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { RevenueLineChart, type RevenueDataPoint } from '@/components/ui/RevenueLineChart';
 import { formatCurrency, formatDate } from '@/utils/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_INNER_WIDTH = SCREEN_WIDTH - 64;
-const LINE_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 56);
 const BAR_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 36);
 
 export default function DashboardScreen() {
@@ -33,52 +33,16 @@ export default function DashboardScreen() {
 
   const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-  const rawLineReceived = (stats?.timelineData ?? []).map((d) => {
+  const revenueChartData: RevenueDataPoint[] = (stats?.timelineData ?? []).map((d) => {
     const parts = d.month.split('-');
     const mIdx = parts.length > 1 ? parseInt(parts[1], 10) - 1 : 0;
     const yShort = parts.length > 0 ? parts[0].slice(2) : '';
     const label = mIdx >= 0 && mIdx < 12 ? `${MONTH_ABBR[mIdx]}/${yShort}` : d.month;
     return {
-      value: d.received,
       label,
-      dataPointColor: colors.success,
+      received: d.received,
+      due: d.due,
     };
-  });
-
-  const rawLineDue = (stats?.timelineData ?? []).map((d) => ({
-    value: d.due,
-    dataPointColor: colors.warning,
-  }));
-
-  // Ponto zerado na origem (0,0) colado na parede do eixo Y
-  const lineReceived = rawLineReceived.length > 0
-    ? [{ value: 0, label: '', dataPointColor: 'transparent', hideDataPoint: true }, ...rawLineReceived]
-    : [];
-
-  const lineDue = rawLineDue.length > 0
-    ? [{ value: 0, label: '', dataPointColor: 'transparent', hideDataPoint: true }, ...rawLineDue]
-    : [];
-
-  const allValues = [
-    ...lineReceived.map((d) => d.value),
-    ...lineDue.map((d) => d.value),
-  ];
-  const rawMax = Math.max(...allValues, 10);
-  const chartMax = Math.ceil((rawMax * 1.25) / 10) * 10;
-
-  const ITEM_SPACING = 60;
-  const TOTAL_CHART_WIDTH = Math.max(LINE_CHART_WIDTH - 44, lineReceived.length * ITEM_SPACING);
-
-  const sectionStep = chartMax / 4;
-  const yAxisLabels = [
-    chartMax,
-    chartMax - sectionStep,
-    chartMax - sectionStep * 2,
-    chartMax - sectionStep * 3,
-    0,
-  ].map((v) => {
-    if (v >= 1000) return `R$${(v / 1000).toFixed(0)}K`;
-    return `R$${Math.round(v)}`;
   });
 
   const pieData = (stats?.statusBreakdown ?? []).map((s) => ({
@@ -140,8 +104,8 @@ export default function DashboardScreen() {
           <StatCard
             label="Total a Receber"
             value={stats?.totalDue ?? 0}
-            icon={<Ionicons name="time-outline" size={20} color={colors.error} />}
-            accentColor={colors.error}
+            icon={<Ionicons name="alert-circle" size={20} color={colors.warning} />}
+            accentColor={colors.warning}
           />
         </View>
 
@@ -155,7 +119,7 @@ export default function DashboardScreen() {
         />
 
         {/* Dual Line Chart — Fluxo de Recebimentos (Recebidos vs A Receber) */}
-        {lineReceived.length > 0 && (
+        {revenueChartData.length > 0 && (
           <Card style={styles.chartCard}>
             <CardTitle
               title="Fluxo de Recebimentos"
@@ -177,106 +141,7 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', width: '100%' }}>
-              {/* Sticky Y-Axis Column (Fixa na esquerda) */}
-              <View style={{ width: 44, height: 170, justifyContent: 'space-between', alignItems: 'flex-end', paddingRight: 6, zIndex: 10 }}>
-                {yAxisLabels.map((lbl, idx) => (
-                  <Text key={idx} style={{ color: colors.textTertiary, fontSize: 10, fontWeight: fontWeight.medium }}>
-                    {lbl}
-                  </Text>
-                ))}
-              </View>
-
-              {/* Scrollable Chart */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={true}
-                contentContainerStyle={{ paddingRight: 16 }}
-                style={{ flex: 1 }}
-              >
-                <View>
-                  <LineChart
-                    data={lineReceived}
-                    data2={lineDue}
-                    width={TOTAL_CHART_WIDTH}
-                    spacing={ITEM_SPACING}
-                    height={170}
-                    maxValue={chartMax}
-                    initialSpacing={0}
-                    endSpacing={12}
-                    color1={colors.success}
-                    color2={colors.warning}
-                    dataPointsColor1={colors.success}
-                    dataPointsColor2={colors.warning}
-                    thickness1={2.5}
-                    thickness2={2.5}
-                    startFillColor1={colors.success}
-                    startFillColor2={colors.warning}
-                    startOpacity={0.2}
-                    endOpacity={0.02}
-                    areaChart
-                    hideYAxisText={true}
-                    yAxisLabelWidth={0}
-                    pointerConfig={{
-                      pointerStripColor: colors.border,
-                      pointerStripWidth: 1.5,
-                      pointerColor: colors.primary,
-                      radius: 5,
-                      pointerLabelWidth: 140,
-                      pointerLabelHeight: 60,
-                      autoAdjustPointerLabelPosition: true,
-                      pointerLabelComponent: (items: any[]) => {
-                        const item1 = items[0];
-                        const item2 = items[1];
-                        const monthLabel = item1?.label || item2?.label || '';
-                        if (!monthLabel) return null;
-
-                        return (
-                          <View
-                            style={{
-                              paddingHorizontal: 10,
-                              paddingVertical: 6,
-                              backgroundColor: colors.surface,
-                              borderRadius: radius.md,
-                              borderColor: colors.border,
-                              borderWidth: 1,
-                              shadowColor: '#000',
-                              shadowOffset: { width: 0, height: 2 },
-                              shadowOpacity: 0.15,
-                              shadowRadius: 4,
-                              elevation: 4,
-                            }}
-                          >
-                            <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginBottom: 2 }}>
-                              {monthLabel}
-                            </Text>
-                            {item1 && item1.value !== undefined && (
-                              <Text style={{ color: colors.success, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
-                                Recebido: {formatCurrency(item1.value)}
-                              </Text>
-                            )}
-                            {item2 && item2.value !== undefined && (
-                              <Text style={{ color: colors.warning, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
-                                A Receber: {formatCurrency(item2.value)}
-                              </Text>
-                            )}
-                          </View>
-                        );
-                      },
-                    }}
-                    xAxisColor={colors.border}
-                    yAxisColor={colors.border}
-                    xAxisLabelTextStyle={{ color: colors.textTertiary, fontSize: 9 }}
-                    rulesColor={colors.border}
-                    rulesType="solid"
-                    rulesLength={TOTAL_CHART_WIDTH}
-                    noOfSections={4}
-                    hideRules={false}
-                    showYAxisIndices={false}
-                  />
-                </View>
-              </ScrollView>
-            </View>
+            <RevenueLineChart data={revenueChartData} />
           </Card>
         )}
 
@@ -290,6 +155,7 @@ export default function DashboardScreen() {
                 donut
                 radius={70}
                 innerRadius={42}
+                innerCircleColor={colors.surface}
                 centerLabelComponent={() => (
                   <View style={{ alignItems: 'center' }}>
                     <Text style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold }}>

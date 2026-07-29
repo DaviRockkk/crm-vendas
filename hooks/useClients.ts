@@ -5,12 +5,42 @@ import type { Client } from '@/types';
 const QUERY_KEY = 'clients';
 
 async function fetchClients(): Promise<Client[]> {
-  const { data, error } = await supabase
-    .from('clients')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data ?? [];
+  const [clientsRes, salesRes] = await Promise.all([
+    supabase.from('clients').select('*').order('name'),
+    supabase.from('sales').select('client_id, total_amount, paid_amount, due_amount, status'),
+  ]);
+
+  if (clientsRes.error) throw clientsRes.error;
+  if (salesRes.error) throw salesRes.error;
+
+  const clients = clientsRes.data ?? [];
+  const sales = salesRes.data ?? [];
+
+  const salesByClient: Record<string, { totalPaid: number; totalDue: number; count: number }> = {};
+
+  sales.forEach((s: any) => {
+    const cid = s.client_id;
+    if (!cid) return;
+    if (!salesByClient[cid]) {
+      salesByClient[cid] = { totalPaid: 0, totalDue: 0, count: 0 };
+    }
+    const paid = Number(s.paid_amount || 0);
+    const due = s.status !== 'pago' ? Number(s.due_amount || 0) : 0;
+
+    salesByClient[cid].totalPaid += paid;
+    salesByClient[cid].totalDue += due;
+    salesByClient[cid].count += 1;
+  });
+
+  return clients.map((c: any) => {
+    const stats = salesByClient[c.id] || { totalPaid: 0, totalDue: 0, count: 0 };
+    return {
+      ...c,
+      totalPaid: stats.totalPaid,
+      totalDue: stats.totalDue,
+      totalSalesCount: stats.count,
+    };
+  });
 }
 
 async function fetchClientById(id: string): Promise<Client> {

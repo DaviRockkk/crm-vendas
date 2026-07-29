@@ -9,6 +9,8 @@ import {
   Modal,
   TextInput,
   BackHandler,
+  Share,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +22,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates, calculateInstallmentsDetail } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates, calculateInstallmentsDetail, getWhatsAppUrl } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
@@ -129,6 +131,89 @@ export default function SaleDetailScreen() {
     });
   }
 
+  function generateScheduleText() {
+    if (!sale) return '';
+    const clientName = client?.name ?? 'Cliente';
+    const totalStr = formatCurrency(sale.total_amount);
+    const paidStr = formatCurrency(sale.paid_amount);
+    const dueStr = formatCurrency(sale.due_amount);
+
+    const installmentDetails = calculateInstallmentsDetail(
+      sale.total_amount,
+      sale.paid_amount,
+      sale.installments || 1,
+      new Date(sale.created_at)
+    );
+
+    let message = `📋 *CRONOGRAMA DE PAGAMENTO*\n`;
+    message += `👤 *Cliente:* ${clientName}\n`;
+    message += `💰 *Valor Total:* ${totalStr}\n`;
+    message += `✅ *Valor Pago:* ${paidStr}\n`;
+    if (sale.status !== 'pago') {
+      message += `⚠️ *Saldo Pendente:* ${dueStr}\n`;
+    }
+    message += `\n📅 *PARCELAS (${sale.installments || 1}x):*\n`;
+
+    installmentDetails.forEach((inst) => {
+      const statusIcon = inst.status === 'pago' ? '✅' : inst.status === 'parcial' ? '🟡' : '⏳';
+      const statusText =
+        inst.status === 'pago'
+          ? 'Pago'
+          : inst.status === 'parcial'
+          ? `Parcial (${formatCurrency(inst.paid)})`
+          : 'Pendente';
+      message += `${statusIcon} *${inst.number}ª Parcela:* ${formatCurrency(inst.total)}\n`;
+      message += `   • Vencimento: ${formatDate(inst.dueDate)}\n`;
+      message += `   • Status: ${statusText}\n`;
+      if (inst.status === 'parcial' && inst.remaining > 0) {
+        message += `   • Restante: ${formatCurrency(inst.remaining)}\n`;
+      }
+      message += `\n`;
+    });
+
+    if (sale.sale_items && sale.sale_items.length > 0) {
+      message += `📦 *ITENS DA VENDA:*\n`;
+      sale.sale_items.forEach((item: any) => {
+        message += `• ${item.quantity}x ${item.product_name} (${formatCurrency(item.unit_price)})\n`;
+      });
+    }
+
+    return message.trim();
+  }
+
+  async function handleShareSchedule() {
+    const text = generateScheduleText();
+    if (!text) return;
+    try {
+      await Share.share({
+        message: text,
+        title: `Cronograma de Parcelas - ${client?.name ?? 'Cliente'}`,
+      });
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível compartilhar o cronograma.');
+    }
+  }
+
+  async function handleWhatsAppShare() {
+    const text = generateScheduleText();
+    if (!text) return;
+    const url = getWhatsAppUrl(client?.phone, text);
+    if (!url) {
+      handleShareSchedule();
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Share.share({ message: text });
+      }
+    } catch (error) {
+      await Share.share({ message: text });
+    }
+  }
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <Header
@@ -227,6 +312,25 @@ export default function SaleDetailScreen() {
                 <CardTitle
                   title="Cronograma de Parcelas"
                   subtitle={`${sale.installments || 1}x de ${formatCurrency(sale.total_amount / (sale.installments || 1))}`}
+                  right={
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: colors.primaryLight,
+                        paddingHorizontal: 10,
+                        paddingVertical: 5,
+                        borderRadius: radius.full,
+                      }}
+                      onPress={handleShareSchedule}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="share-social-outline" size={14} color={colors.primary} />
+                      <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginLeft: 4 }}>
+                        Compartilhar
+                      </Text>
+                    </TouchableOpacity>
+                  }
                 />
 
                 <View style={{ gap: 10, marginTop: 4 }}>
@@ -317,6 +421,53 @@ export default function SaleDetailScreen() {
                       </View>
                     );
                   })}
+                </View>
+
+                {/* Bottom Action Buttons */}
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+                  <TouchableOpacity
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: colors.surfaceSecondary,
+                      borderColor: colors.border,
+                      borderWidth: 1,
+                      paddingVertical: 10,
+                      borderRadius: radius.md,
+                      gap: 6,
+                    }}
+                    onPress={handleShareSchedule}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="share-outline" size={16} color={colors.text} />
+                    <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                      Compartilhar Texto
+                    </Text>
+                  </TouchableOpacity>
+
+                  {client?.phone ? (
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#25D366',
+                        paddingVertical: 10,
+                        borderRadius: radius.md,
+                        gap: 6,
+                      }}
+                      onPress={handleWhatsAppShare}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                        Enviar no WhatsApp
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
               </Card>
             );

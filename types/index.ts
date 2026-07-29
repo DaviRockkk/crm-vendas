@@ -14,6 +14,9 @@ export interface Client {
   notes?: string | null;
   created_at: string;
   user_id: string;
+  totalPaid?: number;
+  totalDue?: number;
+  totalSalesCount?: number;
 }
 
 export interface SaleItem {

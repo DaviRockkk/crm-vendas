@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   BackHandler,
+  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -64,6 +65,68 @@ export default function ClientDetailScreen() {
         router.back();
       },
     });
+  }
+
+  function generateUnifiedScheduleText(monthlyGroups: any[]) {
+    if (!client) return '';
+    const totalDueFormatted = formatCurrency(totalDue);
+
+    let message = `📋 *PARCELAS UNIFICADAS POR MÊS*\n`;
+    message += `👤 *Cliente:* ${client.name}\n`;
+    message += `⚠️ *Dívida Total a Receber:* ${totalDueFormatted}\n\n`;
+
+    if (monthlyGroups.length === 0) {
+      message += `🎉 Nenhuma parcela pendente nos próximos meses!\n`;
+    } else {
+      message += `📅 *RESUMO DOS VENCIMENTOS:*\n\n`;
+      monthlyGroups.forEach((group: any) => {
+        message += `🗓️ *Vencimento: ${formatDate(group.dueDate)}*\n`;
+        message += `   • Valor Pendente no Mês: ${formatCurrency(group.totalDue)}\n`;
+        message += `   • ${group.itemsCount} parcela(s):\n`;
+
+        group.salesDetails.forEach((item: any) => {
+          const partialTag = item.isPartial ? ' (Parcial)' : '';
+          message += `     - Parcela ${item.instNum}/${item.totalInst}: ${formatCurrency(item.remaining)}${partialTag}\n`;
+        });
+
+        message += `\n`;
+      });
+    }
+
+    return message.trim();
+  }
+
+  async function handleShareUnifiedSchedule(monthlyGroups: any[]) {
+    const text = generateUnifiedScheduleText(monthlyGroups);
+    if (!text) return;
+    try {
+      await Share.share({
+        message: text,
+        title: `Parcelas Unificadas - ${client?.name ?? 'Cliente'}`,
+      });
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível compartilhar as parcelas.');
+    }
+  }
+
+  async function handleWhatsAppShareUnified(monthlyGroups: any[]) {
+    const text = generateUnifiedScheduleText(monthlyGroups);
+    if (!text) return;
+    const url = getWhatsAppUrl(client?.phone, text);
+    if (!url) {
+      handleShareUnifiedSchedule(monthlyGroups);
+      return;
+    }
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Share.share({ message: text });
+      }
+    } catch (error) {
+      await Share.share({ message: text });
+    }
   }
 
   const initials = client.name
@@ -221,6 +284,27 @@ export default function ClientDetailScreen() {
                 <CardTitle
                   title="Parcelas Unificadas por Mês"
                   subtitle="Soma de todas as parcelas pendentes do cliente"
+                  right={
+                    monthlyGroups.length > 0 ? (
+                      <TouchableOpacity
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          backgroundColor: colors.primaryLight,
+                          paddingHorizontal: 10,
+                          paddingVertical: 5,
+                          borderRadius: radius.full,
+                        }}
+                        onPress={() => handleShareUnifiedSchedule(monthlyGroups)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="share-social-outline" size={14} color={colors.primary} />
+                        <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginLeft: 4 }}>
+                          Compartilhar
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null
+                  }
                 />
 
                 {monthlyGroups.length === 0 ? (
@@ -228,85 +312,134 @@ export default function ClientDetailScreen() {
                     Nenhuma parcela pendente nos próximos meses 🎉
                   </Text>
                 ) : (
-                  <View style={{ gap: 12, marginTop: 4 }}>
-                    {monthlyGroups.map((group) => {
-                      const isPartialInMonth = group.totalPaid > 0 && group.totalDue > 0;
-                      const statusColor = group.percentage >= 100 ? colors.success : isPartialInMonth ? colors.primary : colors.textTertiary;
-                      const statusLabel = group.percentage >= 100 ? 'Quitado ✓' : isPartialInMonth ? `Parcial (${group.percentage.toFixed(0)}%)` : 'Pendente';
+                  <>
+                    <View style={{ gap: 12, marginTop: 4 }}>
+                      {monthlyGroups.map((group) => {
+                        const isPartialInMonth = group.totalPaid > 0 && group.totalDue > 0;
+                        const statusColor = group.percentage >= 100 ? colors.success : isPartialInMonth ? colors.primary : colors.textTertiary;
+                        const statusLabel = group.percentage >= 100 ? 'Quitado ✓' : isPartialInMonth ? `Parcial (${group.percentage.toFixed(0)}%)` : 'Pendente';
 
-                      return (
-                        <View
-                          key={group.dueDate}
-                          style={{
-                            padding: 12,
-                            borderRadius: radius.md,
-                            backgroundColor: colors.surfaceSecondary,
-                            borderColor: colors.border,
-                            borderWidth: 1,
-                          }}
-                        >
-                          {/* Cabeçalho do Mês */}
-                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                              <View>
-                                <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
-                                  Vencimento: {formatDate(group.dueDate)}
+                        return (
+                          <View
+                            key={group.dueDate}
+                            style={{
+                              padding: 12,
+                              borderRadius: radius.md,
+                              backgroundColor: colors.surfaceSecondary,
+                              borderColor: colors.border,
+                              borderWidth: 1,
+                            }}
+                          >
+                            {/* Cabeçalho do Mês */}
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                                <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                                <View>
+                                  <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                                    Vencimento: {formatDate(group.dueDate)}
+                                  </Text>
+                                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                                    {group.itemsCount} parcela(s) neste mês
+                                  </Text>
+                                </View>
+                              </View>
+
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={{ color: colors.error, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
+                                  {formatCurrency(group.totalDue)}
                                 </Text>
-                                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
-                                  {group.itemsCount} parcela(s) neste mês
+                                <Text style={{ color: statusColor, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginTop: 2 }}>
+                                  {statusLabel}
                                 </Text>
                               </View>
                             </View>
 
-                            <View style={{ alignItems: 'flex-end' }}>
-                              <Text style={{ color: colors.error, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
-                                {formatCurrency(group.totalDue)}
-                              </Text>
-                              <Text style={{ color: statusColor, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginTop: 2 }}>
-                                {statusLabel}
-                              </Text>
+                            {/* Barra de Progresso da Porcentagem por Mês */}
+                            <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden', marginTop: 8 }}>
+                              <View
+                                style={{
+                                  height: '100%',
+                                  width: `${group.percentage}%`,
+                                  backgroundColor: statusColor,
+                                  borderRadius: 3,
+                                }}
+                              />
                             </View>
-                          </View>
 
-                          {/* Barra de Progresso da Porcentagem por Mês */}
-                          <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden', marginTop: 8 }}>
-                            <View
-                              style={{
-                                height: '100%',
-                                width: `${group.percentage}%`,
-                                backgroundColor: statusColor,
-                                borderRadius: 3,
-                              }}
-                            />
+                            {/* Detalhamento por Venda */}
+                            {group.salesDetails.length > 0 && (
+                              <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                                {group.salesDetails.map((item, idx) => (
+                                  <TouchableOpacity
+                                    key={idx}
+                                    style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: idx === 0 ? 0 : 4 }}
+                                    onPress={() => router.push({ pathname: `/(tabs)/sales/${item.saleId}` as any, params: { from: `/(tabs)/clients/${id}` } })}
+                                  >
+                                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                                      • Parcela {item.instNum}/{item.totalInst}
+                                    </Text>
+                                    <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                                      {formatCurrency(item.remaining)}
+                                      {item.isPartial && (
+                                        <Text style={{ color: colors.primary, fontSize: fontSize.xs }}> (Parcial)</Text>
+                                      )}
+                                    </Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            )}
                           </View>
+                        );
+                      })}
+                    </View>
 
-                          {/* Detalhamento por Venda */}
-                          {group.salesDetails.length > 0 && (
-                            <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
-                              {group.salesDetails.map((item, idx) => (
-                                <TouchableOpacity
-                                  key={idx}
-                                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: idx === 0 ? 0 : 4 }}
-                                  onPress={() => router.push({ pathname: `/(tabs)/sales/${item.saleId}` as any, params: { from: `/(tabs)/clients/${id}` } })}
-                                >
-                                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
-                                    • Parcela {item.instNum}/{item.totalInst}
-                                  </Text>
-                                  <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
-                                    {formatCurrency(item.remaining)}
-                                    {item.isPartial && (
-                                      <Text style={{ color: colors.primary, fontSize: fontSize.xs }}> (Parcial)</Text>
-                                    )}
-                                  </Text>
-                                </TouchableOpacity>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      );
-                    })}
-                  </View>
+                    {/* Bottom Action Buttons */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: colors.surfaceSecondary,
+                          borderColor: colors.border,
+                          borderWidth: 1,
+                          paddingVertical: 10,
+                          borderRadius: radius.md,
+                          gap: 6,
+                        }}
+                        onPress={() => handleShareUnifiedSchedule(monthlyGroups)}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="share-outline" size={16} color={colors.text} />
+                        <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                          Compartilhar Texto
+                        </Text>
+                      </TouchableOpacity>
+
+                      {client.phone ? (
+                        <TouchableOpacity
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#25D366',
+                            paddingVertical: 10,
+                            borderRadius: radius.md,
+                            gap: 6,
+                          }}
+                          onPress={() => handleWhatsAppShareUnified(monthlyGroups)}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="logo-whatsapp" size={16} color="#FFF" />
+                          <Text style={{ color: '#FFF', fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                            Enviar no WhatsApp
+                          </Text>
+                        </TouchableOpacity>
+                      ) : null}
+                    </View>
+                  </>
                 )}
               </Card>
             );

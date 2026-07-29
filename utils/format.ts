@@ -163,13 +163,14 @@ export function formatPhone(phone: string | null | undefined): string {
 }
 
 // Gera URL do WhatsApp a partir do telefone
-export function getWhatsAppUrl(phone: string | null | undefined): string | null {
+export function getWhatsAppUrl(phone: string | null | undefined, text?: string): string | null {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, '');
   if (!digits) return null;
   // Adiciona DDI Brasil se não tiver
   const number = digits.startsWith('55') ? digits : `55${digits}`;
-  return `https://wa.me/${number}`;
+  const textParam = text ? `?text=${encodeURIComponent(text)}` : '';
+  return `https://wa.me/${number}${textParam}`;
 }
 
 // Retorna label de status da venda
