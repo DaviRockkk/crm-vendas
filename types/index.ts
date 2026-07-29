@@ -66,6 +66,7 @@ export interface NewSale {
   due_amount: number;
   due_date?: string | null;
   installments?: number | null;
+  created_at?: string;
   status: SaleStatus;
   items: NewSaleItem[];
 }

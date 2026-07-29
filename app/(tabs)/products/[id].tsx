@@ -40,7 +40,6 @@ export default function ProductDetailScreen() {
       <Header
         title="Detalhe do Produto"
         showBack
-        onBack={() => router.replace('/(tabs)/products')}
         right={
           <TouchableOpacity
             style={[styles.editBtn, { backgroundColor: colors.primaryLight }]}

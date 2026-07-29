@@ -25,6 +25,14 @@ export function parseCurrency(input: string): number {
   return parseInt(digits, 10) / 100;
 }
 
+// Retorna a data atual no formato YYYY-MM-DD
+export function getTodayDate(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // Retorna o próximo dia 5 no formato YYYY-MM-05 (sempre dia 5 de cada mês)
 export function getDefaultDueDate(referenceDate: Date = new Date()): string {
   const date = new Date(referenceDate);
@@ -64,6 +72,62 @@ export function getInstallmentDueDates(count: number = 1, referenceDate: Date = 
   }
 
   return dates;
+}
+
+export interface InstallmentDetail {
+  number: number;
+  total: number;
+  paid: number;
+  remaining: number;
+  percentage: number;
+  dueDate: string;
+  status: 'pago' | 'parcial' | 'pendente';
+}
+
+// Calcula o detalhamento e progresso de cada parcela com base no valor total pago
+export function calculateInstallmentsDetail(
+  totalAmount: number,
+  paidAmount: number,
+  installmentsCount: number = 1,
+  referenceDate: Date = new Date()
+): InstallmentDetail[] {
+  const count = Math.max(1, installmentsCount);
+  const dueDates = getInstallmentDueDates(count, referenceDate);
+  const baseValue = totalAmount > 0 ? totalAmount / count : 0;
+
+  let remainingPaid = Math.max(0, paidAmount);
+
+  return dueDates.map((dueDate, idx) => {
+    const isLast = idx === count - 1;
+    const installmentTotal = isLast
+      ? Math.max(0, totalAmount - baseValue * (count - 1))
+      : baseValue;
+
+    const paidForThis = Math.min(installmentTotal, Math.max(0, remainingPaid));
+    remainingPaid = Math.max(0, remainingPaid - paidForThis);
+
+    const remaining = Math.max(0, installmentTotal - paidForThis);
+    const percentage = installmentTotal > 0
+      ? Math.min(100, Math.max(0, (paidForThis / installmentTotal) * 100))
+      : 100;
+
+    let status: 'pago' | 'parcial' | 'pendente' = 'pendente';
+    if (percentage >= 99.9) {
+      status = 'pago';
+    } else if (percentage > 0) {
+      status = 'parcial';
+    }
+
+    return {
+      number: idx + 1,
+      total: installmentTotal,
+      paid: paidForThis,
+      remaining,
+      percentage,
+      dueDate,
+      status,
+    };
+  });
 }
 
 // Formata data para pt-BR (ex: 20/07/2026)

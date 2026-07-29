@@ -36,6 +36,7 @@ create table public.sales (
   paid_amount numeric(10,2) not null default 0,
   due_amount numeric(10,2) not null default 0,
   due_date date,
+  installments integer default 1,
   status text not null default 'pendente' check (status in ('pago', 'parcial', 'pendente')),
   created_at timestamptz default now() not null
 );

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,14 +21,24 @@ import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency, formatDate, getWhatsAppUrl } from '@/utils/format';
+import { formatCurrency, formatDate, getWhatsAppUrl, calculateInstallmentsDetail } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
+import type { Sale } from '@/types';
 
 export default function ClientDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const { colors, fontSize, fontWeight, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  React.useEffect(() => {
+    if (!from) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.navigate(from as any);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [from, router]);
 
   const { data: client, isLoading } = useClient(id);
   const { data: sales = [] } = useSalesByClient(id);
@@ -67,7 +78,7 @@ export default function ClientDetailScreen() {
       <Header
         title="Detalhe do Cliente"
         showBack
-        onBack={() => router.replace('/(tabs)/clients')}
+        onBack={from ? () => router.navigate(from as any) : undefined}
         right={
           <TouchableOpacity
             style={[styles.editBtn, { backgroundColor: colors.primaryLight }]}
@@ -144,6 +155,163 @@ export default function ClientDetailScreen() {
             </View>
           </Card>
 
+          {/* Parcelas Unificadas por Mês */}
+          {(() => {
+            interface MonthlyGroup {
+              dueDate: string;
+              totalAmount: number;
+              totalPaid: number;
+              totalDue: number;
+              percentage: number;
+              itemsCount: number;
+              salesDetails: { saleId: string; total: number; paid: number; remaining: number; instNum: number; totalInst: number; isPartial: boolean }[];
+            }
+
+            const map: Record<string, MonthlyGroup> = {};
+
+            sales.forEach((sale) => {
+              if (sale.status === 'pago' || sale.due_amount <= 0) return;
+
+              const details = calculateInstallmentsDetail(
+                sale.total_amount,
+                sale.paid_amount,
+                sale.installments || 1,
+                new Date(sale.created_at)
+              );
+
+              details.forEach((inst) => {
+                if (inst.status === 'pago' || inst.remaining <= 0) return;
+
+                const key = inst.dueDate;
+                if (!map[key]) {
+                  map[key] = {
+                    dueDate: key,
+                    totalAmount: 0,
+                    totalPaid: 0,
+                    totalDue: 0,
+                    percentage: 0,
+                    itemsCount: 0,
+                    salesDetails: [],
+                  };
+                }
+
+                map[key].totalAmount += inst.total;
+                map[key].totalPaid += inst.paid;
+                map[key].totalDue += inst.remaining;
+                map[key].itemsCount += 1;
+                map[key].salesDetails.push({
+                  saleId: sale.id,
+                  total: inst.total,
+                  paid: inst.paid,
+                  remaining: inst.remaining,
+                  instNum: inst.number,
+                  totalInst: sale.installments || 1,
+                  isPartial: inst.status === 'parcial',
+                });
+              });
+            });
+
+            const monthlyGroups = Object.values(map).map((g) => {
+              const pct = g.totalAmount > 0 ? (g.totalPaid / g.totalAmount) * 100 : 0;
+              return { ...g, percentage: Math.min(100, Math.max(0, pct)) };
+            }).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+            return (
+              <Card style={styles.card}>
+                <CardTitle
+                  title="Parcelas Unificadas por Mês"
+                  subtitle="Soma de todas as parcelas pendentes do cliente"
+                />
+
+                {monthlyGroups.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 4 }}>
+                    Nenhuma parcela pendente nos próximos meses 🎉
+                  </Text>
+                ) : (
+                  <View style={{ gap: 12, marginTop: 4 }}>
+                    {monthlyGroups.map((group) => {
+                      const isPartialInMonth = group.totalPaid > 0 && group.totalDue > 0;
+                      const statusColor = group.percentage >= 100 ? colors.success : isPartialInMonth ? colors.primary : colors.textTertiary;
+                      const statusLabel = group.percentage >= 100 ? 'Quitado ✓' : isPartialInMonth ? `Parcial (${group.percentage.toFixed(0)}%)` : 'Pendente';
+
+                      return (
+                        <View
+                          key={group.dueDate}
+                          style={{
+                            padding: 12,
+                            borderRadius: radius.md,
+                            backgroundColor: colors.surfaceSecondary,
+                            borderColor: colors.border,
+                            borderWidth: 1,
+                          }}
+                        >
+                          {/* Cabeçalho do Mês */}
+                          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                              <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                              <View>
+                                <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                                  Vencimento: {formatDate(group.dueDate)}
+                                </Text>
+                                <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                                  {group.itemsCount} parcela(s) neste mês
+                                </Text>
+                              </View>
+                            </View>
+
+                            <View style={{ alignItems: 'flex-end' }}>
+                              <Text style={{ color: colors.error, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
+                                {formatCurrency(group.totalDue)}
+                              </Text>
+                              <Text style={{ color: statusColor, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginTop: 2 }}>
+                                {statusLabel}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Barra de Progresso da Porcentagem por Mês */}
+                          <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden', marginTop: 8 }}>
+                            <View
+                              style={{
+                                height: '100%',
+                                width: `${group.percentage}%`,
+                                backgroundColor: statusColor,
+                                borderRadius: 3,
+                              }}
+                            />
+                          </View>
+
+                          {/* Detalhamento por Venda */}
+                          {group.salesDetails.length > 0 && (
+                            <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}>
+                              {group.salesDetails.map((item, idx) => (
+                                <TouchableOpacity
+                                  key={idx}
+                                  style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: idx === 0 ? 0 : 4 }}
+                                  onPress={() => router.push({ pathname: `/(tabs)/sales/${item.saleId}` as any, params: { from: `/(tabs)/clients/${id}` } })}
+                                >
+                                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                                    • Parcela {item.instNum}/{item.totalInst}
+                                  </Text>
+                                  <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                                    {formatCurrency(item.remaining)}
+                                    {item.isPartial && (
+                                      <Text style={{ color: colors.primary, fontSize: fontSize.xs }}> (Parcial)</Text>
+                                    )}
+                                  </Text>
+                                </TouchableOpacity>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+              </Card>
+            );
+          })()}
+
           {/* Notes */}
           {client.notes && (
             <Card style={styles.card}>
@@ -198,7 +366,7 @@ export default function ClientDetailScreen() {
                       borderTopWidth: i === 0 ? 0 : 1,
                     },
                   ]}
-                  onPress={() => router.push(`/(tabs)/sales/${sale.id}`)}
+                  onPress={() => router.push({ pathname: `/(tabs)/sales/${sale.id}` as any, params: { from: `/(tabs)/clients/${id}` } })}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }}>

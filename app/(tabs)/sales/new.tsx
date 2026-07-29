@@ -21,10 +21,11 @@ import { useProducts } from '@/hooks/useProducts';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate, getInstallmentDueDates, formatDate } from '@/utils/format';
+import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate, getInstallmentDueDates, calculateInstallmentsDetail, formatDate, getTodayDate } from '@/utils/format';
 import type { NewSaleItem, SaleStatus, Client, Product } from '@/types';
 
 export default function NewSaleScreen() {
@@ -46,6 +47,7 @@ export default function NewSaleScreen() {
     }
   }, [clientId, clients]);
   const [items, setItems] = useState<NewSaleItem[]>([]);
+  const [createdAt, setCreatedAt] = useState(getTodayDate());
   const [paidAmount, setPaidAmount] = useState('');
   const [installments, setInstallments] = useState<number>(1);
   const [dueDate, setDueDate] = useState(getDefaultDueDate());
@@ -135,6 +137,7 @@ export default function NewSaleScreen() {
     }
 
     try {
+      const saleDateObj = createdAt.trim() ? new Date(createdAt.trim() + 'T12:00:00') : new Date();
       await createSale.mutateAsync({
         client_id: selectedClient.id,
         total_amount: totalAmount,
@@ -142,6 +145,7 @@ export default function NewSaleScreen() {
         due_amount: dueAmount,
         due_date: dueDate.trim() || null,
         installments,
+        created_at: saleDateObj.toISOString(),
         status: autoStatus,
         items,
       });
@@ -312,7 +316,6 @@ export default function NewSaleScreen() {
             <View style={styles.installmentsGrid}>
               {[1, 2, 3, 4, 5, 6].map((num) => {
                 const isSelected = installments === num;
-                const isMostCommon = num === 3;
                 return (
                   <TouchableOpacity
                     key={num}
@@ -334,17 +337,11 @@ export default function NewSaleScreen() {
                         color: isSelected ? colors.primary : colors.text,
                         fontSize: fontSize.sm,
                         fontWeight: isSelected ? fontWeight.bold : fontWeight.medium,
+                        textAlign: 'center',
                       }}
                     >
-                      {num === 1 ? 'À vista (1x)' : `${num}x`}
+                      {num === 1 ? 'À vista' : `${num}x`}
                     </Text>
-                    {isMostCommon && (
-                      <View style={[styles.popularBadge, { backgroundColor: isSelected ? colors.primary : colors.warning }]}>
-                        <Text style={{ color: '#FFF', fontSize: 9, fontWeight: fontWeight.bold }}>
-                          Mais comum
-                        </Text>
-                      </View>
-                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -357,20 +354,61 @@ export default function NewSaleScreen() {
                   {installments}x de {formatCurrency(totalAmount / installments)} sem juros
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 8 }}>
-                  Vencimentos (sempre dia 05 do mês):
+                  Vencimentos:
                 </Text>
-                {getInstallmentDueDates(installments).map((dueDateStr, idx) => (
-                  <View key={idx} style={styles.installmentRow}>
-                    <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.medium }}>
-                      Parcela {idx + 1}/{installments} ({formatCurrency(totalAmount / installments)})
-                    </Text>
-                    <Text style={{ color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
-                      {formatDate(dueDateStr)}
-                    </Text>
-                  </View>
-                ))}
+                {calculateInstallmentsDetail(
+                  totalAmount,
+                  parsedPaid,
+                  installments,
+                  new Date(createdAt + (createdAt.length === 10 ? 'T12:00:00' : ''))
+                ).map((inst) => {
+                  const isPaid = inst.status === 'pago';
+                  const isPartial = inst.status === 'parcial';
+                  const color = isPaid ? colors.success : isPartial ? colors.primary : colors.textTertiary;
+                  const statusLabel = isPaid ? 'Pago ✓' : isPartial ? `Parcial (${inst.percentage.toFixed(0)}%)` : 'Pendente';
+
+                  return (
+                    <View key={inst.number} style={{ marginBottom: 8 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                          Parcela {inst.number}/{installments} ({formatCurrency(inst.total)})
+                        </Text>
+                        <Text style={{ color: color, fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                          {statusLabel} · {formatDate(inst.dueDate)}
+                        </Text>
+                      </View>
+                      {isPartial && (
+                        <Text style={{ color: colors.error, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginTop: 2 }}>
+                          Falta: {formatCurrency(inst.remaining)}
+                        </Text>
+                      )}
+                      <View style={{ height: 6, backgroundColor: colors.border, borderRadius: 3, overflow: 'hidden', marginTop: 4 }}>
+                        <View
+                          style={{
+                            height: '100%',
+                            width: `${inst.percentage}%`,
+                            backgroundColor: isPaid ? colors.success : isPartial ? colors.primary : colors.textTertiary,
+                            borderRadius: 3,
+                          }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })}
               </View>
             )}
+
+            <DatePicker
+              label="Data da venda"
+              value={createdAt}
+              onChange={(v) => {
+                setCreatedAt(v);
+                const refDate = new Date(v + (v.length === 10 ? 'T12:00:00' : ''));
+                if (!isNaN(refDate.getTime())) {
+                  setDueDate(getDefaultDueDate(refDate));
+                }
+              }}
+            />
 
             <Input
               label="Valor pago no momento (R$)"
@@ -381,13 +419,11 @@ export default function NewSaleScreen() {
               leftIcon={<Ionicons name="cash-outline" size={18} color={colors.textTertiary} />}
             />
 
-            <Input
+            <DatePicker
               label="Data de vencimento (primeira parcela)"
               value={dueDate}
-              onChangeText={setDueDate}
-              placeholder="AAAA-MM-05"
-              leftIcon={<Ionicons name="calendar-outline" size={18} color={colors.textTertiary} />}
-              hint="Vencimento padrão sempre no dia 5 de cada mês"
+              onChange={setDueDate}
+              suggestDayFive
             />
 
             {totalAmount > 0 && (
@@ -529,23 +565,16 @@ const styles = StyleSheet.create({
   installmentsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    rowGap: 8,
+    marginBottom: 14,
   },
   installmentChip: {
-    flexDirection: 'column',
+    width: '31.5%',
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
     borderWidth: 1.5,
-    minWidth: 54,
-  },
-  popularBadge: {
-    borderRadius: 4,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    marginTop: 2,
   },
   installmentsBreakdown: {
     padding: 12,

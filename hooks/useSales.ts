@@ -64,15 +64,38 @@ export function useCreateSale() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Não autenticado');
 
-      const { items, ...saleData } = newSale;
+      const { items, installments, ...saleData } = newSale;
+
+      const payload: any = { ...saleData, user_id: user.id };
+      if (installments && installments > 1) {
+        payload.installments = installments;
+      }
 
       // Criar venda
-      const { data: sale, error: saleError } = await supabase
+      let sale: Sale;
+      const { data, error: saleError } = await supabase
         .from('sales')
-        .insert({ ...saleData, user_id: user.id })
+        .insert(payload)
         .select()
         .single();
-      if (saleError) throw saleError;
+
+      if (saleError) {
+        const errorMsg = saleError.message || saleError.details || JSON.stringify(saleError);
+        if (errorMsg.includes('installments')) {
+          delete payload.installments;
+          const { data: retryData, error: retryError } = await supabase
+            .from('sales')
+            .insert(payload)
+            .select()
+            .single();
+          if (retryError) throw retryError;
+          sale = retryData;
+        } else {
+          throw saleError;
+        }
+      } else {
+        sale = data;
+      }
 
       // Criar itens da venda
       if (items.length > 0) {

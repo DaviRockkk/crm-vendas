@@ -18,6 +18,16 @@ export function Header({ title, subtitle, showBack = false, onBack, right }: Hea
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  function handleBack() {
+    if (onBack) {
+      onBack();
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  }
+
   return (
     <View
       style={[
@@ -33,7 +43,7 @@ export function Header({ title, subtitle, showBack = false, onBack, right }: Hea
         {showBack && (
           <TouchableOpacity
             style={[styles.backBtn, { backgroundColor: colors.surfaceSecondary }]}
-            onPress={onBack ? onBack : () => router.back()}
+            onPress={handleBack}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="chevron-back" size={20} color={colors.text} />

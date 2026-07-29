@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   View,
   Text,
@@ -6,7 +5,9 @@ import {
   StyleSheet,
   RefreshControl,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart, PieChart, BarChart } from 'react-native-gifted-charts';
@@ -25,6 +26,7 @@ const BAR_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 36);
 export default function DashboardScreen() {
   const { colors, fontSize, fontWeight, radius } = useTheme();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { data: stats, isLoading, refetch, isRefetching } = useDashboard();
 
   if (isLoading) return <LoadingSpinner fullScreen label="Carregando dashboard..." />;
@@ -218,12 +220,13 @@ export default function DashboardScreen() {
           <Card style={styles.chartCard}>
             <CardTitle title="Maiores Devedores" subtitle="Clientes com saldo pendente" />
             {stats?.topDebtors.map((d, i) => (
-              <View
+              <TouchableOpacity
                 key={d.client_id}
                 style={[
                   styles.debtorRow,
                   { borderTopColor: colors.border, borderTopWidth: i === 0 ? 0 : 1 },
                 ]}
+                onPress={() => router.push({ pathname: `/(tabs)/clients/${d.client_id}` as any, params: { from: '/(tabs)' } })}
               >
                 <View style={[styles.rankBadge, { backgroundColor: colors.primaryLight }]}>
                   <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
@@ -239,7 +242,7 @@ export default function DashboardScreen() {
                 <Text style={{ color: colors.error, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
                   {formatCurrency(d.amount)}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </Card>
         )}

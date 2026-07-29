@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  BackHandler,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,17 +20,26 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates, calculateInstallmentsDetail } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
 const STATUS_OPTIONS: SaleStatus[] = ['pendente', 'pago'];
 
 export default function SaleDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const { colors, radius, fontSize, fontWeight } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!from) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.navigate(from as any);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [from, router]);
 
   const { data: sale, isLoading } = useSale(id);
   const updateSale = useUpdateSale();
@@ -124,7 +134,7 @@ export default function SaleDetailScreen() {
       <Header
         title="Detalhe da Venda"
         showBack
-        onBack={() => router.replace('/(tabs)/sales')}
+        onBack={from ? () => router.navigate(from as any) : undefined}
       />
 
       <ScrollView
@@ -147,7 +157,7 @@ export default function SaleDetailScreen() {
             <View style={styles.summaryHeader}>
               <View>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm }}>Cliente</Text>
-                <TouchableOpacity onPress={() => router.push(`/(tabs)/clients/${sale.client_id}`)}>
+                <TouchableOpacity onPress={() => router.push({ pathname: `/(tabs)/clients/${sale.client_id}` as any, params: { from: `/(tabs)/sales/${sale.id}` } })}>
                   <Text style={{ color: colors.primary, fontSize: fontSize.lg, fontWeight: fontWeight.bold }}>
                     {client?.name ?? 'Desconhecido'}
                   </Text>
@@ -164,7 +174,7 @@ export default function SaleDetailScreen() {
             {sale.installments && sale.installments > 1 && (
               <View style={{ marginTop: 10, padding: 10, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md }}>
                 <Text style={{ color: colors.primary, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
-                  Parcelado em {sale.installments}x sem juros (Vencimento todo dia 05)
+                  Parcelado em {sale.installments}x sem juros
                 </Text>
                 <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
                   Valor da Parcela: {formatCurrency(sale.total_amount / sale.installments)}
@@ -202,6 +212,115 @@ export default function SaleDetailScreen() {
               )}
             </View>
           </Card>
+
+          {/* Cronograma de Parcelas */}
+          {(() => {
+            const installmentDetails = calculateInstallmentsDetail(
+              sale.total_amount,
+              sale.paid_amount,
+              sale.installments || 1,
+              new Date(sale.created_at)
+            );
+
+            return (
+              <Card style={styles.card}>
+                <CardTitle
+                  title="Cronograma de Parcelas"
+                  subtitle={`${sale.installments || 1}x de ${formatCurrency(sale.total_amount / (sale.installments || 1))}`}
+                />
+
+                <View style={{ gap: 10, marginTop: 4 }}>
+                  {installmentDetails.map((inst) => {
+                    const isPaid = inst.status === 'pago';
+                    const isPartial = inst.status === 'parcial';
+                    const color = isPaid ? colors.success : isPartial ? colors.primary : colors.textTertiary;
+                    const statusLabel = isPaid
+                      ? 'Pago ✓'
+                      : isPartial
+                      ? `Parcial (${inst.percentage.toFixed(0)}%)`
+                      : 'Pendente';
+
+                    return (
+                      <View
+                        key={inst.number}
+                        style={{
+                          padding: 12,
+                          borderRadius: radius.md,
+                          backgroundColor: colors.surfaceSecondary,
+                          borderColor: isPaid ? colors.success + '40' : isPartial ? colors.primary + '40' : colors.border,
+                          borderWidth: 1,
+                        }}
+                      >
+                        {/* Header line */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Ionicons
+                              name={isPaid ? 'checkmark-circle' : isPartial ? 'time' : 'ellipse-outline'}
+                              size={18}
+                              color={color}
+                            />
+                            <Text style={{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.bold }}>
+                              {inst.number}ª Parcela
+                            </Text>
+                          </View>
+
+                          <View
+                            style={{
+                              backgroundColor: isPaid ? colors.successLight : isPartial ? colors.primaryLight : colors.border + '40',
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: radius.full,
+                            }}
+                          >
+                            <Text style={{ color: color, fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                              {statusLabel}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Due date & values line */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 6 }}>
+                          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+                            Vence em: <Text style={{ fontWeight: fontWeight.semibold }}>{formatDate(inst.dueDate)}</Text>
+                          </Text>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                              {formatCurrency(inst.paid)} / {formatCurrency(inst.total)}
+                            </Text>
+                            {isPartial && (
+                              <Text style={{ color: colors.error, fontSize: fontSize.xs, fontWeight: fontWeight.bold, marginTop: 2 }}>
+                                Falta: {formatCurrency(inst.remaining)}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+
+                        {/* Download-style Progress Bar */}
+                        <View
+                          style={{
+                            height: 8,
+                            backgroundColor: colors.border,
+                            borderRadius: 4,
+                            overflow: 'hidden',
+                            marginTop: 8,
+                          }}
+                        >
+                          <View
+                            style={{
+                              height: '100%',
+                              width: `${inst.percentage}%`,
+                              backgroundColor: isPaid ? colors.success : isPartial ? colors.primary : colors.textTertiary,
+                              borderRadius: 4,
+                            }}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </Card>
+            );
+          })()}
 
           {/* Items */}
           <Card style={StyleSheet.flatten([styles.card, { padding: 0 }])} noPadding>
@@ -250,7 +369,7 @@ export default function SaleDetailScreen() {
               {STATUS_OPTIONS.filter((s) => s !== sale.status).map((s) => (
                 <Button
                   key={s}
-                  label={s === 'pago' ? 'Marcar como Pago (Total)' : getStatusLabel(s)}
+                  label={s === 'pago' ? 'Marcar como Pago' : getStatusLabel(s)}
                   variant={s === 'pago' ? 'primary' : 'outline'}
                   size="sm"
                   onPress={() => handleStatusChange(s)}
