@@ -47,6 +47,7 @@ export interface DashboardStats {
   totalDue: number;
   totalSales: number;
   monthlySales: { date: string; value: number }[];
+  timelineData: { month: string; received: number; due: number }[];
   statusBreakdown: { label: string; value: number; color: string }[];
   topProducts: { name: string; count: number }[];
   topDebtors: { name: string; amount: number; client_id: string }[];

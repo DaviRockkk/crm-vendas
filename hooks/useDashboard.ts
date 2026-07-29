@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { DashboardStats } from '@/types';
 import { lightColors } from '@/constants/theme';
+import { calculateInstallmentsDetail } from '@/utils/format';
 
 async function fetchDashboardStats(): Promise<DashboardStats> {
   const now = new Date();
@@ -14,7 +15,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
       .gte('created_at', startOfMonth),
     supabase
       .from('sales')
-      .select('id, paid_amount, due_amount, status, created_at, client_id, sale_items(product_name, quantity)')
+      .select('id, total_amount, paid_amount, due_amount, status, created_at, installments, client_id, sale_items(product_name, quantity)')
       .order('created_at', { ascending: false }),
   ]);
 
@@ -36,6 +37,45 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
   const monthlySales = Object.entries(dailyMap)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, value]) => ({ date, value }));
+
+  // Previsão e histórico comparativo por mês (Recebidos vs. A Receber)
+  const receivedByMonth: Record<string, number> = {};
+  allSales.forEach((s: any) => {
+    const mKey = (s.created_at ?? '').slice(0, 7);
+    if (mKey) {
+      receivedByMonth[mKey] = (receivedByMonth[mKey] ?? 0) + (s.paid_amount ?? 0);
+    }
+  });
+
+  const dueByMonth: Record<string, number> = {};
+  allSales.forEach((s: any) => {
+    if (s.status === 'pago' || (s.due_amount ?? 0) <= 0) return;
+
+    const details = calculateInstallmentsDetail(
+      s.total_amount ?? 0,
+      s.paid_amount ?? 0,
+      s.installments ?? 1,
+      new Date(s.created_at)
+    );
+
+    details.forEach((inst) => {
+      if (inst.status === 'pago' || inst.remaining <= 0) return;
+      const mKey = inst.dueDate.slice(0, 7);
+      dueByMonth[mKey] = (dueByMonth[mKey] ?? 0) + inst.remaining;
+    });
+  });
+
+  const monthSet = new Set<string>([
+    ...Object.keys(receivedByMonth),
+    ...Object.keys(dueByMonth),
+  ]);
+  const sortedMonths = Array.from(monthSet).sort((a, b) => a.localeCompare(b));
+
+  const timelineData = sortedMonths.map((mKey) => ({
+    month: mKey,
+    received: receivedByMonth[mKey] ?? 0,
+    due: dueByMonth[mKey] ?? 0,
+  }));
 
   // Pizza: status breakdown
   const pago = allSales.filter((s) => s.status === 'pago').length;
@@ -87,6 +127,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
     totalDue,
     totalSales: allSales.length,
     monthlySales,
+    timelineData,
     statusBreakdown,
     topProducts,
     topDebtors,
