@@ -22,7 +22,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, getInstallmentDueDates, calculateInstallmentsDetail, getWhatsAppUrl } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, calculateInstallmentsDetail, getWhatsAppUrl } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 

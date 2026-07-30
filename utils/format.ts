@@ -225,6 +225,14 @@ export function daysUntilDue(dueDateStr: string | null | undefined): number | nu
 
 // Retorna mês/ano formatado (ex: "Jul/2026")
 export function formatMonthYear(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length >= 2) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const date = new Date(year, month, 15);
+    return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+  }
   const date = new Date(dateStr);
   return date.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
 }

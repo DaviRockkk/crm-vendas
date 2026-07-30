@@ -7,7 +7,6 @@ import {
   RefreshControl,
   Dimensions,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,7 +18,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { RevenueLineChart, type RevenueDataPoint } from '@/components/ui/RevenueLineChart';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency } from '@/utils/format';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_INNER_WIDTH = SCREEN_WIDTH - 64;
