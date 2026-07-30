@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +7,7 @@ import {
   RefreshControl,
   Dimensions,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,24 +26,47 @@ const CARD_INNER_WIDTH = SCREEN_WIDTH - 64;
 const BAR_CHART_WIDTH = Math.max(160, CARD_INNER_WIDTH - 36);
 
 export default function DashboardScreen() {
-  const { colors, fontSize, fontWeight, radius } = useTheme();
+  const { colors, isDark, fontSize, fontWeight, radius } = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: stats, isLoading, refetch, isRefetching } = useDashboard();
+  const [semesterOffset, setSemesterOffset] = useState(0);
 
   if (isLoading) return <LoadingSpinner fullScreen label="Carregando dashboard..." />;
 
+  const getSemesterInfo = (offset: number) => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentSemIndex = now.getMonth() < 6 ? 0 : 1;
+
+    const totalSemesters = currentYear * 2 + currentSemIndex + offset;
+    const targetYear = Math.floor(totalSemesters / 2);
+    const targetSemIndex = ((totalSemesters % 2) + 2) % 2;
+
+    const semesterTitle = `${targetSemIndex === 0 ? '1º' : '2º'} Semestre - ${targetYear}`;
+    const startMonth = targetSemIndex === 0 ? 0 : 6;
+
+    const months: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      const mStr = String(startMonth + i + 1).padStart(2, '0');
+      months.push(`${targetYear}-${mStr}`);
+    }
+
+    return { semesterTitle, months };
+  };
+
+  const { semesterTitle, months } = getSemesterInfo(semesterOffset);
+
   const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-  const revenueChartData: RevenueDataPoint[] = (stats?.timelineData ?? []).map((d) => {
-    const parts = d.month.split('-');
-    const mIdx = parts.length > 1 ? parseInt(parts[1], 10) - 1 : 0;
-    const yShort = parts.length > 0 ? parts[0].slice(2) : '';
-    const label = mIdx >= 0 && mIdx < 12 ? `${MONTH_ABBR[mIdx]}/${yShort}` : d.month;
+  const revenueChartData: RevenueDataPoint[] = months.map((mKey) => {
+    const parts = mKey.split('-');
+    const mIdx = parseInt(parts[1], 10) - 1;
+    const label = MONTH_ABBR[mIdx] ?? mKey;
     return {
       label,
-      received: d.received,
-      due: d.due,
+      received: stats?.receivedByMonth?.[mKey] ?? 0,
+      due: stats?.dueByMonth?.[mKey] ?? 0,
     };
   });
 
@@ -78,7 +103,7 @@ export default function DashboardScreen() {
           { backgroundColor: colors.surface, borderBottomColor: colors.border, paddingTop: insets.top + 16 },
         ]}
       >
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.greeting, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
             Bem-vindo de volta 👋
           </Text>
@@ -93,7 +118,7 @@ export default function DashboardScreen() {
 
       <View style={styles.content}>
         {/* Stat Cards */}
-        <View style={styles.statsRow}>
+        <View style={[styles.statsRow, { marginBottom: 20 }]}>
           <StatCard
             label="Total Recebido"
             value={stats?.totalReceived ?? 0}
@@ -109,43 +134,7 @@ export default function DashboardScreen() {
           />
         </View>
 
-        <StatCard
-          label="Total de Vendas"
-          value={stats?.totalSales ?? 0}
-          isCurrency={false}
-          icon={<Ionicons name="receipt-outline" size={20} color={colors.primary} />}
-          accentColor={colors.primary}
-          style={{ marginBottom: 20 }}
-        />
-
-        {/* Dual Line Chart — Fluxo de Recebimentos (Recebidos vs A Receber) */}
-        {revenueChartData.length > 0 && (
-          <Card style={styles.chartCard}>
-            <CardTitle
-              title="Fluxo de Recebimentos"
-              subtitle="Comparativo: Recebidos vs. A Receber por Mês"
-            />
-
-            <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14, marginTop: -4 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success }} />
-                <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
-                  Recebidos
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.warning }} />
-                <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
-                  A Receber (Previsão)
-                </Text>
-              </View>
-            </View>
-
-            <RevenueLineChart data={revenueChartData} />
-          </Card>
-        )}
-
-        {/* Pie Chart — Status */}
+        {/* Pie Chart — Status das Vendas */}
         {pieData.length > 0 && (
           <Card style={styles.chartCard}>
             <CardTitle title="Status das Vendas" subtitle="Distribuição por status" />
@@ -180,6 +169,67 @@ export default function DashboardScreen() {
             </View>
           </Card>
         )}
+
+        {/* Dual Line Chart — Fluxo de Recebimentos (Recebidos vs A Receber) */}
+        <Card style={styles.chartCard}>
+          <CardTitle
+            title="Fluxo de Recebimentos"
+            subtitle={semesterTitle}
+            right={
+              <View style={{ flexDirection: 'row', gap: 6 }}>
+                <TouchableOpacity
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surfaceSecondary,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => setSemesterOffset((prev) => prev - 1)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-back" size={16} color={colors.text} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.surfaceSecondary,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  onPress={() => setSemesterOffset((prev) => prev + 1)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="chevron-forward" size={16} color={colors.text} />
+                </TouchableOpacity>
+              </View>
+            }
+          />
+
+          <View style={{ flexDirection: 'row', gap: 16, marginBottom: 14, marginTop: -4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.success }} />
+              <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                Recebidos
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.warning }} />
+              <Text style={{ color: colors.text, fontSize: fontSize.xs, fontWeight: fontWeight.semibold }}>
+                A Receber (Previsão)
+              </Text>
+            </View>
+          </View>
+
+          <RevenueLineChart data={revenueChartData} key={semesterTitle} />
+        </Card>
 
         {/* Bar Chart — Top Produtos */}
         {barData.length > 0 && (
@@ -262,7 +312,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingBottom: 16,

@@ -49,7 +49,34 @@ export function ProductCard({ product }: ProductCardProps) {
         </Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+      {/* Sales count badge */}
+      <View
+        style={[
+          styles.salesBadge,
+          {
+            backgroundColor: (product.salesCount ?? 0) > 0 ? colors.primaryLight : colors.surfaceSecondary,
+            borderRadius: radius.full,
+          },
+        ]}
+      >
+        <Ionicons
+          name="bag-handle-outline"
+          size={12}
+          color={(product.salesCount ?? 0) > 0 ? colors.primary : colors.textTertiary}
+        />
+        <Text
+          style={{
+            color: (product.salesCount ?? 0) > 0 ? colors.primary : colors.textTertiary,
+            fontSize: fontSize.xs,
+            fontWeight: fontWeight.semibold,
+            marginLeft: 4,
+          }}
+        >
+          {product.salesCount ?? 0} {product.salesCount === 1 ? 'vendido' : 'vendidos'}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} style={{ marginLeft: 8 }} />
     </TouchableOpacity>
   );
 }
@@ -82,9 +109,16 @@ const styles = StyleSheet.create({
   },
   info: {
     flex: 1,
+    paddingRight: 8,
   },
   name: {
     marginBottom: 4,
   },
   price: {},
+  salesBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
 });

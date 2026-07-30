@@ -1,10 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, StyleProp } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 
 interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   noPadding?: boolean;
 }
 
@@ -33,7 +33,7 @@ interface CardTitleProps {
   title: string;
   subtitle?: string;
   right?: React.ReactNode;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function CardTitle({ title, subtitle, right, style }: CardTitleProps) {
@@ -58,8 +58,8 @@ export function CardTitle({ title, subtitle, right, style }: CardTitleProps) {
 interface SectionProps {
   title: string;
   children: React.ReactNode;
-  style?: ViewStyle;
-  titleStyle?: TextStyle;
+  style?: StyleProp<ViewStyle>;
+  titleStyle?: StyleProp<TextStyle>;
 }
 
 export function Section({ title, children, style, titleStyle }: SectionProps) {

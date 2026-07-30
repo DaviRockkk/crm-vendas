@@ -5,12 +5,36 @@ import type { Product } from '@/types';
 const QUERY_KEY = 'products';
 
 async function fetchProducts(): Promise<Product[]> {
-  const { data, error } = await supabase
-    .from('products')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data ?? [];
+  const [productsRes, itemsRes] = await Promise.all([
+    supabase.from('products').select('*').order('name'),
+    supabase.from('sale_items').select('product_id, product_name, quantity'),
+  ]);
+
+  if (productsRes.error) throw productsRes.error;
+  const products = productsRes.data ?? [];
+  const items = itemsRes.data ?? [];
+
+  const countById: Record<string, number> = {};
+  const countByName: Record<string, number> = {};
+
+  items.forEach((item: any) => {
+    const qty = item.quantity ?? 1;
+    if (item.product_id) {
+      countById[item.product_id] = (countById[item.product_id] ?? 0) + qty;
+    }
+    if (item.product_name) {
+      const lowerName = item.product_name.trim().toLowerCase();
+      countByName[lowerName] = (countByName[lowerName] ?? 0) + qty;
+    }
+  });
+
+  return products.map((p) => {
+    const soldCount = countById[p.id] ?? countByName[p.name.trim().toLowerCase()] ?? 0;
+    return {
+      ...p,
+      salesCount: soldCount,
+    };
+  });
 }
 
 async function fetchProductById(id: string): Promise<Product> {

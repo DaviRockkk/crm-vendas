@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { DashboardStats } from '@/types';
 import { lightColors } from '@/constants/theme';
-import { calculateInstallmentsDetail } from '@/utils/format';
+import { calculateInstallmentsDetail, isOverdue } from '@/utils/format';
 
 async function fetchDashboardStats(): Promise<DashboardStats> {
   const now = new Date();
@@ -15,7 +15,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
       .gte('created_at', startOfMonth),
     supabase
       .from('sales')
-      .select('id, total_amount, paid_amount, due_amount, status, created_at, installments, client_id, sale_items(product_name, quantity)')
+      .select('id, total_amount, paid_amount, due_amount, due_date, status, created_at, installments, client_id, sale_items(product_name, quantity)')
       .order('created_at', { ascending: false }),
   ]);
 
@@ -38,7 +38,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, value]) => ({ date, value }));
 
-  // Previsão e histórico comparativo por mês (Recebidos vs. A Receber)
+  // Previsão e histórico comparativo por mês no semestre atual (Janeiro-Junho ou Julho-Dezembro)
   const receivedByMonth: Record<string, number> = {};
   allSales.forEach((s: any) => {
     const mKey = (s.created_at ?? '').slice(0, 7);
@@ -65,26 +65,43 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
     });
   });
 
-  const monthSet = new Set<string>([
-    ...Object.keys(receivedByMonth),
-    ...Object.keys(dueByMonth),
-  ]);
-  const sortedMonths = Array.from(monthSet).sort((a, b) => a.localeCompare(b));
+  const currentYear = now.getFullYear();
+  const semesterStartMonth = now.getMonth() < 6 ? 0 : 6;
 
-  const timelineData = sortedMonths.map((mKey) => ({
-    month: mKey,
-    received: receivedByMonth[mKey] ?? 0,
-    due: dueByMonth[mKey] ?? 0,
-  }));
+  const timelineData = Array.from({ length: 6 }, (_, i) => {
+    const mIdx = semesterStartMonth + i;
+    const mStr = String(mIdx + 1).padStart(2, '0');
+    const mKey = `${currentYear}-${mStr}`;
+    return {
+      month: mKey,
+      received: receivedByMonth[mKey] ?? 0,
+      due: dueByMonth[mKey] ?? 0,
+    };
+  });
 
-  // Pizza: status breakdown
+  // Pizza: status breakdown (incluindo Vencido)
+  const isSaleOverdue = (s: any) => {
+    if (s.status === 'pago') return false;
+    if (s.due_date) return isOverdue(s.due_date);
+    const details = calculateInstallmentsDetail(
+      s.total_amount ?? 0,
+      s.paid_amount ?? 0,
+      s.installments ?? 1,
+      new Date(s.created_at)
+    );
+    return details.some((inst) => inst.status !== 'pago' && isOverdue(inst.dueDate));
+  };
+
   const pago = allSales.filter((s) => s.status === 'pago').length;
-  const parcial = allSales.filter((s) => s.status === 'parcial').length;
-  const pendente = allSales.filter((s) => s.status === 'pendente').length;
+  const vencido = allSales.filter((s) => isSaleOverdue(s)).length;
+  const parcial = allSales.filter((s) => s.status === 'parcial' && !isSaleOverdue(s)).length;
+  const pendente = allSales.filter((s) => s.status === 'pendente' && !isSaleOverdue(s)).length;
+
   const statusBreakdown = [
     { label: 'Pago', value: pago, color: lightColors.chartGreen },
-    { label: 'Parcial', value: parcial, color: lightColors.chartAmber },
-    { label: 'Pendente', value: pendente, color: lightColors.chartRed },
+    { label: 'Parcial', value: parcial, color: lightColors.chartCyan },
+    { label: 'Pendente', value: pendente, color: lightColors.chartAmber },
+    { label: 'Vencido', value: vencido, color: lightColors.chartRed },
   ].filter((s) => s.value > 0);
 
   // Top produtos (por quantidade total vendida)
@@ -122,12 +139,21 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
     .sort((a, b) => b.amount - a.amount)
     .slice(0, 5);
 
+  const totalVolume = allSales.reduce(
+    (acc, s) => acc + (s.total_amount ?? ((s.paid_amount ?? 0) + (s.due_amount ?? 0))),
+    0
+  );
+  const averageTicket = allSales.length > 0 ? totalVolume / allSales.length : 0;
+
   return {
     totalReceived,
     totalDue,
     totalSales: allSales.length,
+    averageTicket,
     monthlySales,
     timelineData,
+    receivedByMonth,
+    dueByMonth,
     statusBreakdown,
     topProducts,
     topDebtors,

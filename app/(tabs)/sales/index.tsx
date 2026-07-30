@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, ScrollView } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,9 +12,13 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/Button';
 import type { Sale, SaleStatus } from '@/types';
+import { isOverdue } from '@/utils/format';
 
-const STATUS_FILTERS: { label: string; value: SaleStatus | 'todos' }[] = [
-  { label: 'Todos', value: 'todos' },
+type FilterType = SaleStatus | 'atrasadas' | 'todos';
+
+const STATUS_FILTERS: { label: string; value: FilterType }[] = [
+  { label: 'Todas', value: 'todos' },
+  { label: 'Atrasadas', value: 'atrasadas' },
   { label: 'Pendente', value: 'pendente' },
   { label: 'Parcial', value: 'parcial' },
   { label: 'Pago', value: 'pago' },
@@ -25,9 +29,13 @@ export default function SalesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: sales = [], isLoading, refetch, isRefetching } = useSales();
-  const [filter, setFilter] = useState<SaleStatus | 'todos'>('todos');
+  const [filter, setFilter] = useState<FilterType>('todos');
 
-  const filtered = filter === 'todos' ? sales : sales.filter((s) => s.status === filter);
+  const filtered = sales.filter((s) => {
+    if (filter === 'todos') return true;
+    if (filter === 'atrasadas') return s.status !== 'pago' && isOverdue(s.due_date);
+    return s.status === filter;
+  });
 
   const renderItem = useCallback(({ item }: { item: Sale }) => (
     <SaleCard sale={item} />
@@ -49,33 +57,39 @@ export default function SalesScreen() {
       />
 
       {/* Status filter chips */}
-      <View style={[styles.filterBar, { borderBottomColor: colors.border }]}>
-        {STATUS_FILTERS.map((f) => {
-          const active = filter === f.value;
-          return (
-            <TouchableOpacity
-              key={f.value}
-              style={[
-                styles.chip,
-                {
-                  backgroundColor: active ? colors.primary : colors.surfaceSecondary,
-                  borderRadius: radius.full,
-                },
-              ]}
-              onPress={() => setFilter(f.value)}
-            >
-              <Text
-                style={{
-                  color: active ? '#FFF' : colors.textSecondary,
-                  fontSize: fontSize.sm,
-                  fontWeight: active ? fontWeight.semibold : fontWeight.regular,
-                }}
+      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.borderLight }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterBar}
+        >
+          {STATUS_FILTERS.map((f) => {
+            const active = filter === f.value;
+            return (
+              <TouchableOpacity
+                key={f.value}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: active ? colors.primary : colors.surfaceSecondary,
+                    borderRadius: radius.full,
+                  },
+                ]}
+                onPress={() => setFilter(f.value)}
               >
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+                <Text
+                  style={{
+                    color: active ? '#FFF' : colors.textSecondary,
+                    fontSize: fontSize.sm,
+                    fontWeight: active ? fontWeight.semibold : fontWeight.medium,
+                  }}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {isLoading ? (
@@ -120,7 +134,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
-    borderBottomWidth: 1,
   },
   chip: {
     paddingHorizontal: 14,

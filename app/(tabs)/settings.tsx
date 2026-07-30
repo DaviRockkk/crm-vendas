@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
 import { Card } from '@/components/ui/Card';
+import { sendTestNotification, type TestNotificationType } from '@/lib/notifications';
 
 interface SettingRowProps {
   icon: string;
@@ -86,6 +88,15 @@ export default function SettingsScreen() {
       Alert.alert('Erro ao exportar', e.message ?? 'Tente novamente.');
     } finally {
       setExportingCSV(false);
+    }
+  }
+
+  async function handleTestNotification(type: TestNotificationType) {
+    try {
+      await sendTestNotification(type);
+      Alert.alert('Notificação Enviada 🔔', 'A notificação deve aparecer em instantes no seu dispositivo.');
+    } catch (e: any) {
+      Alert.alert('Erro ao enviar', e.message ?? 'Verifique se as permissões de notificação estão ativas.');
     }
   }
 
@@ -180,17 +191,58 @@ export default function SettingsScreen() {
             />
           </Card>
 
+          {/* Notification Tests */}
+          <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+            TESTE DE NOTIFICAÇÕES (DEV)
+          </Text>
+          <Card style={styles.card} noPadding>
+            <SettingRow
+              icon="notifications-outline"
+              iconColor={colors.warning}
+              label="⚠️ Vencimento Amanhã"
+              sublabel="Alerta de cobrança 1 dia antes do vencimento"
+              onPress={() => handleTestNotification('due_before')}
+            />
+            <SettingRow
+              icon="alert-circle-outline"
+              iconColor={colors.error}
+              label="🔴 Vencimento Hoje"
+              sublabel="Alerta de pagamento com vencimento no dia"
+              onPress={() => handleTestNotification('due_today')}
+            />
+            <SettingRow
+              icon="time-outline"
+              iconColor={colors.chartRed}
+              label="🚨 Pagamento Atrasado"
+              sublabel="Alerta de parcela vencida / inadimplência"
+              onPress={() => handleTestNotification('overdue')}
+            />
+            <SettingRow
+              icon="notifications-circle-outline"
+              iconColor={colors.primary}
+              label="🔔 Teste Geral de Notificação"
+              sublabel="Verificar permissão e alertas do sistema"
+              onPress={() => handleTestNotification('system_test')}
+            />
+          </Card>
+
           {/* About */}
           <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
             SOBRE
           </Text>
-          <Card style={styles.card} noPadding>
-            <SettingRow
-              icon="information-circle-outline"
-              iconColor={colors.textSecondary}
-              label="CRM Vendas"
-              sublabel="Versão 1.0.0"
+          <Card style={[styles.card, { padding: 18, alignItems: 'center' }]}>
+            <Image
+              source={
+                isDark
+                  ? require('@/assets/images/crm-logo-whiteText-noBG.png')
+                  : require('@/assets/images/crm-logo-dark-noBG.png')
+              }
+              style={{ width: 150, height: 42, marginBottom: 8 }}
+              resizeMode="contain"
             />
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center' }}>
+              Versão 1.0.0 • Sistema de Gestão de CRM e Vendas
+            </Text>
           </Card>
 
           {/* Danger */}

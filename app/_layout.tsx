@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { View, Image, ActivityIndicator } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import * as SplashScreen from 'expo-splash-screen';
@@ -51,7 +52,18 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0D1117', alignItems: 'center', justifyContent: 'center' }}>
+        <Image
+          source={require('@/assets/images/crm-logo-whiteText-noBG.png')}
+          style={{ width: 220, height: 75 }}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#6366F1" style={{ marginTop: 24 }} />
+      </View>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

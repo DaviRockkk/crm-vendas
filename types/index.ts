@@ -5,6 +5,7 @@ export interface Product {
   photo_url?: string | null;
   created_at: string;
   user_id: string;
+  salesCount?: number;
 }
 
 export interface Client {
@@ -49,8 +50,11 @@ export interface DashboardStats {
   totalReceived: number;
   totalDue: number;
   totalSales: number;
+  averageTicket: number;
   monthlySales: { date: string; value: number }[];
   timelineData: { month: string; received: number; due: number }[];
+  receivedByMonth: Record<string, number>;
+  dueByMonth: Record<string, number>;
   statusBreakdown: { label: string; value: number; color: string }[];
   topProducts: { name: string; count: number }[];
   topDebtors: { name: string; amount: number; client_id: string }[];

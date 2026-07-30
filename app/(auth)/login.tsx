@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -96,12 +97,11 @@ export default function LoginScreen() {
         style={[styles.gradient, { paddingTop: insets.top + 40 }]}
       >
         <View style={styles.logoArea}>
-          <View style={styles.logoIcon}>
-            <Ionicons name="briefcase" size={32} color="#FFFFFF" />
-          </View>
-          <Text style={[styles.appName, { fontSize: fontSize['3xl'], fontWeight: fontWeight.extrabold }]}>
-            CRM Vendas
-          </Text>
+          <Image
+            source={require('@/assets/images/crm-logo-whiteText-noBG.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={[styles.appTagline, { fontSize: fontSize.base }]}>
             Gerencie seus clientes e vendas
           </Text>
@@ -244,20 +244,9 @@ const styles = StyleSheet.create({
   logoArea: {
     alignItems: 'center',
   },
-  logoIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-  },
-  appName: {
-    color: '#FFFFFF',
-    letterSpacing: -1,
+  logoImage: {
+    width: 220,
+    height: 70,
     marginBottom: 8,
   },
   appTagline: {
