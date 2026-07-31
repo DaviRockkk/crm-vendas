@@ -10,6 +10,7 @@ import { queryClient } from '@/lib/queryClient';
 import { supabase } from '@/lib/supabase';
 import { requestNotificationPermissions } from '@/lib/notifications';
 import { useThemeStore } from '@/store/useThemeStore';
+import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import type { Session } from '@supabase/supabase-js';
 
 SplashScreen.preventAutoHideAsync();
@@ -75,6 +76,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
           </Stack>
         </AuthGuard>
+        <CustomAlertModal />
       </QueryClientProvider>
     </GestureHandlerRootView>
   );

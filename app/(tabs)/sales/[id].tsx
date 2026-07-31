@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, calculateInstallmentsDetail, getWhatsAppUrl } from '@/utils/format';
-import { confirmAction } from '@/utils/alert';
+import { confirmAction, showAlert, showError } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
 const STATUS_OPTIONS: SaleStatus[] = ['pendente', 'pago'];
@@ -93,14 +93,14 @@ export default function SaleDetailScreen() {
     if (paymentMode === 'add') {
       const added = parseCurrency(addAmount);
       if (isNaN(added) || added <= 0) {
-        Alert.alert('Atenção', 'Informe um valor a adicionar válido.');
+        showAlert('Atenção', 'Informe um valor a adicionar válido.', 'warning');
         return;
       }
       finalPaid = Math.min(sale.total_amount, sale.paid_amount + added);
     } else {
       const edited = parseCurrency(totalPaidAmount);
       if (isNaN(edited) || edited < 0) {
-        Alert.alert('Atenção', 'Informe um valor total pago válido.');
+        showAlert('Atenção', 'Informe um valor total pago válido.', 'warning');
         return;
       }
       finalPaid = Math.min(sale.total_amount, edited);
@@ -190,7 +190,7 @@ export default function SaleDetailScreen() {
         title: `Cronograma de Parcelas - ${client?.name ?? 'Cliente'}`,
       });
     } catch (error) {
-      Alert.alert('Erro', 'Não foi possível compartilhar o cronograma.');
+      showError('Erro', 'Não foi possível compartilhar o cronograma.');
     }
   }
 

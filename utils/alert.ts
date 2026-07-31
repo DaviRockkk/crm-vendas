@@ -1,4 +1,4 @@
-import { Platform, Alert } from 'react-native';
+import { useAlertStore, AlertType } from '@/store/useAlertStore';
 
 interface ConfirmOptions {
   title: string;
@@ -6,6 +6,8 @@ interface ConfirmOptions {
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void | Promise<void>;
+  onCancel?: () => void;
+  type?: AlertType;
 }
 
 export function confirmAction({
@@ -14,24 +16,40 @@ export function confirmAction({
   confirmText = 'Excluir',
   cancelText = 'Cancelar',
   onConfirm,
+  onCancel,
+  type = 'danger',
 }: ConfirmOptions) {
-  if (Platform.OS === 'web') {
-    if (window.confirm(`${title}\n\n${message}`)) {
-      onConfirm();
-    }
-    return;
-  }
-
-  Alert.alert(
+  useAlertStore.getState().showAlert({
     title,
     message,
-    [
-      { text: cancelText, style: 'cancel' },
-      {
-        text: confirmText,
-        style: 'destructive',
-        onPress: onConfirm,
-      },
-    ],
-  );
+    type,
+    confirmText,
+    cancelText,
+    showCancel: true,
+    onConfirm,
+    onCancel,
+  });
+}
+
+export function showAlert(
+  title: string,
+  message: string,
+  type: AlertType = 'warning',
+  onConfirm?: () => void
+) {
+  useAlertStore.getState().showAlert({
+    title,
+    message,
+    type,
+    showCancel: false,
+    onConfirm,
+  });
+}
+
+export function showError(title: string, message: string, onConfirm?: () => void) {
+  showAlert(title, message, 'danger', onConfirm);
+}
+
+export function showSuccess(title: string, message: string, onConfirm?: () => void) {
+  showAlert(title, message, 'success', onConfirm);
 }

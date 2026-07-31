@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useTheme } from '@/hooks/useTheme';
+import { showAlert as showCustomAlert } from '@/utils/alert';
 
 export default function LoginScreen() {
   const { colors, fontSize, fontWeight, radius } = useTheme();
@@ -30,12 +31,7 @@ export default function LoginScreen() {
   const [feedback, setFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
   function showAlert(title: string, message: string, onOk?: () => void) {
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n${message}`);
-      if (onOk) onOk();
-    } else {
-      Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
-    }
+    showCustomAlert(title, message, 'warning', onOk);
   }
 
   async function handleSubmit() {

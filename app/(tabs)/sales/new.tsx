@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCreateSale } from '@/hooks/useSales';
 import { useClients } from '@/hooks/useClients';
-import { useProducts } from '@/hooks/useProducts';
+import { useProducts, useCreateProduct } from '@/hooks/useProducts';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
@@ -26,6 +26,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { formatCurrency, maskCurrency, parseCurrency, getDefaultDueDate, getInstallmentDueDates, calculateInstallmentsDetail, formatDate, getTodayDate } from '@/utils/format';
+import { showAlert, showError } from '@/utils/alert';
 import type { NewSaleItem, SaleStatus, Client, Product } from '@/types';
 
 export default function NewSaleScreen() {
@@ -37,6 +38,8 @@ export default function NewSaleScreen() {
   const { data: clients = [] } = useClients();
   const { data: products = [] } = useProducts();
   const createSale = useCreateSale();
+  const createProduct = useCreateProduct();
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
@@ -90,27 +93,55 @@ export default function NewSaleScreen() {
     setShowProductModal(false);
   }
 
-  function confirmItem() {
+  async function confirmItem() {
     if (!editingItem) return;
-    if (!editingItem.product_name.trim()) {
-      Alert.alert('Atenção', 'Informe o nome do produto.');
+    const trimmedName = editingItem.product_name.trim();
+    if (!trimmedName) {
+      showAlert('Atenção', 'Informe o nome do produto.', 'warning');
       return;
     }
     const price = parseCurrency(editingItem.unit_price);
     const qty = parseInt(editingItem.quantity, 10);
     if (isNaN(price) || price <= 0) {
-      Alert.alert('Atenção', 'Informe um preço unitário válido.');
+      showAlert('Atenção', 'Informe um preço unitário válido.', 'warning');
       return;
     }
     if (isNaN(qty) || qty < 1) {
-      Alert.alert('Atenção', 'Quantidade deve ser ao menos 1.');
+      showAlert('Atenção', 'Quantidade deve ser ao menos 1.', 'warning');
       return;
     }
+
+    let productId = editingItem.product_id ?? null;
+
+    if (!productId) {
+      const existing = products.find(
+        (p) => p.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      );
+      if (existing) {
+        productId = existing.id;
+      } else {
+        try {
+          setIsSavingProduct(true);
+          const newProd = await createProduct.mutateAsync({
+            name: trimmedName,
+            default_price: price,
+          });
+          if (newProd?.id) {
+            productId = newProd.id;
+          }
+        } catch (e: any) {
+          console.error('Erro ao salvar novo produto em produtos:', e);
+        } finally {
+          setIsSavingProduct(false);
+        }
+      }
+    }
+
     setItems((prev) => [
       ...prev,
       {
-        product_id: editingItem.product_id ?? null,
-        product_name: editingItem.product_name.trim(),
+        product_id: productId,
+        product_name: trimmedName,
         unit_price: price,
         quantity: qty,
       },
@@ -124,15 +155,15 @@ export default function NewSaleScreen() {
 
   async function handleSave() {
     if (!selectedClient) {
-      Alert.alert('Atenção', 'Selecione um cliente.');
+      showAlert('Atenção', 'Selecione um cliente.', 'warning');
       return;
     }
     if (items.length === 0) {
-      Alert.alert('Atenção', 'Adicione ao menos um item à venda.');
+      showAlert('Atenção', 'Adicione ao menos um item à venda.', 'warning');
       return;
     }
     if (totalAmount <= 0) {
-      Alert.alert('Atenção', 'O valor total deve ser maior que zero.');
+      showAlert('Atenção', 'O valor total deve ser maior que zero.', 'warning');
       return;
     }
 
@@ -151,7 +182,7 @@ export default function NewSaleScreen() {
       });
       router.back();
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Não foi possível criar a venda.');
+      showError('Erro', e.message ?? 'Não foi possível criar a venda.');
     }
   }
 
@@ -276,7 +307,7 @@ export default function NewSaleScreen() {
                 </View>
 
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                  <Button label="Confirmar" onPress={confirmItem} size="sm" style={{ flex: 1 }} />
+                  <Button label="Confirmar" onPress={confirmItem} size="sm" style={{ flex: 1 }} loading={isSavingProduct} />
                   <Button label="Cancelar" variant="outline" onPress={() => setEditingItem(null)} size="sm" style={{ flex: 1 }} />
                 </View>
               </View>
@@ -452,7 +483,7 @@ export default function NewSaleScreen() {
 
       {/* Client picker modal */}
       <Modal visible={showClientModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+        <View style={[styles.modal, { backgroundColor: colors.surface, paddingTop: Math.max(insets.top + 16, 24) }]}>
           <View style={styles.modalHeader}>
             <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.bold }}>
               Selecionar Cliente
@@ -486,7 +517,7 @@ export default function NewSaleScreen() {
 
       {/* Product picker modal */}
       <Modal visible={showProductModal} animationType="slide" presentationStyle="pageSheet">
-        <View style={[styles.modal, { backgroundColor: colors.surface }]}>
+        <View style={[styles.modal, { backgroundColor: colors.surface, paddingTop: Math.max(insets.top + 16, 24) }]}>
           <View style={styles.modalHeader}>
             <Text style={{ color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.bold }}>
               Selecionar Produto

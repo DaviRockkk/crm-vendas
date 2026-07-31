@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { maskCurrency, parseCurrency } from '@/utils/format';
+import { showAlert, showError } from '@/utils/alert';
 
 export default function ProductFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -51,7 +52,7 @@ export default function ProductFormScreen() {
   async function handlePickImage() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permissão necessária', 'Permita o acesso à galeria de fotos.');
+      showAlert('Permissão necessária', 'Permita o acesso à galeria de fotos.', 'warning');
       return;
     }
 
@@ -75,12 +76,12 @@ export default function ProductFormScreen() {
 
   async function handleSave() {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'O nome do produto é obrigatório.');
+      showAlert('Atenção', 'O nome do produto é obrigatório.', 'warning');
       return;
     }
     const parsedPrice = parseCurrency(price);
     if (isNaN(parsedPrice) || parsedPrice <= 0) {
-      Alert.alert('Atenção', 'Informe um preço válido maior que zero.');
+      showAlert('Atenção', 'Informe um preço válido maior que zero.', 'warning');
       return;
     }
 
@@ -112,7 +113,7 @@ export default function ProductFormScreen() {
       router.back();
     } catch (e: any) {
       setUploadingPhoto(false);
-      Alert.alert('Erro', e.message ?? 'Não foi possível salvar o produto.');
+      showError('Erro', e.message ?? 'Não foi possível salvar o produto.');
     }
   }
 

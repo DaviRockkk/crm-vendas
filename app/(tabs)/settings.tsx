@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
 import { importBackupFromJSON } from '@/utils/import';
+import { confirmAction, showError, showSuccess } from '@/utils/alert';
 import { Card } from '@/components/ui/Card';
 
 interface SettingRowProps {
@@ -28,17 +29,17 @@ interface SettingRowProps {
 }
 
 function SettingRow({ icon, iconColor, label, sublabel, right, onPress, danger }: SettingRowProps) {
-  const { colors, radius, fontSize, fontWeight } = useTheme();
+  const { colors, fontSize, fontWeight } = useTheme();
 
   return (
     <TouchableOpacity
-      style={[styles.row, { borderBottomColor: colors.border }]}
+      style={[styles.row, { borderBottomColor: colors.border, backgroundColor: danger ? colors.error + '05' : 'transparent' }]}
       onPress={onPress}
       disabled={!onPress && !right}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <View style={[styles.iconBg, { backgroundColor: iconColor + '20', borderRadius: radius.sm }]}>
-        <Ionicons name={icon as any} size={18} color={iconColor} />
+      <View style={[styles.iconBg, { backgroundColor: iconColor + '20', borderRadius: 8 }]}>
+        <Ionicons name={icon as any} size={18} color={danger ? colors.error : iconColor} />
       </View>
       <View style={styles.rowContent}>
         <Text style={[styles.label, { color: danger ? colors.error : colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }]}>
@@ -56,7 +57,7 @@ function SettingRow({ icon, iconColor, label, sublabel, right, onPress, danger }
 }
 
 export default function SettingsScreen() {
-  const { colors, isDark, toggleTheme, fontSize, fontWeight, radius } = useTheme();
+  const { colors, isDark, toggleTheme, fontSize, fontWeight } = useTheme();
   const insets = useSafeAreaInsets();
   const [user, setUser] = React.useState<string>('');
   const [exportingJSON, setExportingJSON] = useState(false);
@@ -74,7 +75,7 @@ export default function SettingsScreen() {
     try {
       await exportAllDataAsJSON();
     } catch (e: any) {
-      Alert.alert('Erro ao exportar', e.message ?? 'Tente novamente.');
+      showError('Erro ao exportar', e.message ?? 'Tente novamente.');
     } finally {
       setExportingJSON(false);
     }
@@ -85,58 +86,52 @@ export default function SettingsScreen() {
     try {
       await exportAllDataAsCSV();
     } catch (e: any) {
-      Alert.alert('Erro ao exportar', e.message ?? 'Tente novamente.');
+      showError('Erro ao exportar', e.message ?? 'Tente novamente.');
     } finally {
       setExportingCSV(false);
     }
   }
 
   async function handleImportJSON() {
-    Alert.alert(
-      'Restaurar Backup',
-      'Deseja restaurar os dados de um arquivo de backup JSON? Dados existentes com os mesmos IDs serão atualizados.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Restaurar',
-          onPress: async () => {
-            setImportingJSON(true);
-            try {
-              const result = await importBackupFromJSON();
-              if (!result.canceled && result.counts) {
-                const { clients, products, sales, saleItems } = result.counts;
-                Alert.alert(
-                  'Backup Restaurado!',
-                  `Dados restaurados com sucesso:\n\n• ${clients} clientes\n• ${products} produtos\n• ${sales} vendas (${saleItems} itens)`
-                );
-              }
-            } catch (e: any) {
-              Alert.alert('Erro ao restaurar', e.message ?? 'Tente novamente.');
-            } finally {
-              setImportingJSON(false);
-            }
-          },
-        },
-      ]
-    );
+    confirmAction({
+      title: 'Restaurar Backup',
+      message: 'Deseja restaurar os dados de um arquivo de backup JSON? Dados existentes com os mesmos IDs serão atualizados.',
+      confirmText: 'Restaurar',
+      type: 'info',
+      onConfirm: async () => {
+        setImportingJSON(true);
+        try {
+          const result = await importBackupFromJSON();
+          if (!result.canceled && result.counts) {
+            const { clients, products, sales, saleItems } = result.counts;
+            showSuccess(
+              'Backup Restaurado!',
+              `Dados restaurados com sucesso:\n\n• ${clients} clientes\n• ${products} produtos\n• ${sales} vendas (${saleItems} itens)`
+            );
+          }
+        } catch (e: any) {
+          showError('Erro ao restaurar', e.message ?? 'Tente novamente.');
+        } finally {
+          setImportingJSON(false);
+        }
+      },
+    });
   }
 
   async function handleLogout() {
-    Alert.alert('Sair da conta', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Sair',
-        style: 'destructive',
-        onPress: async () => {
-          await supabase.auth.signOut();
-        },
+    confirmAction({
+      title: 'Sair da conta',
+      message: 'Tem certeza que deseja sair?',
+      confirmText: 'Sair',
+      type: 'danger',
+      onConfirm: async () => {
+        await supabase.auth.signOut();
       },
-    ]);
+    });
   }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      {/* Header */}
       <View
         style={[
           styles.header,

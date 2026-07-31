@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,8 +16,8 @@ import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-
 import { maskPhone } from '@/utils/format';
+import { showAlert, showError } from '@/utils/alert';
 
 export default function ClientFormScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -45,13 +44,13 @@ export default function ClientFormScreen() {
 
   async function handleSave() {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'O nome do cliente é obrigatório.');
+      showAlert('Atenção', 'O nome do cliente é obrigatório.', 'warning');
       return;
     }
 
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone && cleanPhone.length < 10) {
-      Alert.alert('Atenção', 'Informe um número de telefone válido com DDD (ex: 11 99999-9999).');
+      showAlert('Atenção', 'Informe um número de telefone válido com DDD (ex: 11 99999-9999).', 'warning');
       return;
     }
 
@@ -63,7 +62,7 @@ export default function ClientFormScreen() {
       }
       router.back();
     } catch (e: any) {
-      Alert.alert('Erro', e.message ?? 'Não foi possível salvar o cliente.');
+      showError('Erro', e.message ?? 'Não foi possível salvar o cliente.');
     }
   }
 
