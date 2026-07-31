@@ -62,6 +62,112 @@ export function useProduct(id: string) {
   });
 }
 
+export interface ProductBuyer {
+  id: string;
+  sale_id: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  sale_date: string;
+  sale_status: 'pago' | 'parcial' | 'pendente';
+  client_id: string;
+  client_name: string;
+  client_phone?: string | null;
+}
+
+async function fetchProductBuyers(productId: string, productName?: string): Promise<ProductBuyer[]> {
+  const [byProductRes, byNameRes] = await Promise.all([
+    supabase
+      .from('sale_items')
+      .select(`
+        id,
+        sale_id,
+        product_id,
+        product_name,
+        unit_price,
+        quantity,
+        sales!inner (
+          id,
+          created_at,
+          status,
+          client_id,
+          clients (
+            id,
+            name,
+            phone
+          )
+        )
+      `)
+      .eq('product_id', productId),
+    productName
+      ? supabase
+          .from('sale_items')
+          .select(`
+            id,
+            sale_id,
+            product_id,
+            product_name,
+            unit_price,
+            quantity,
+            sales!inner (
+              id,
+              created_at,
+              status,
+              client_id,
+              clients (
+                id,
+                name,
+                phone
+              )
+            )
+          `)
+          .ilike('product_name', productName.trim())
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (byProductRes.error) throw byProductRes.error;
+  if (byNameRes.error) throw byNameRes.error;
+
+  const rawList = [...(byProductRes.data ?? []), ...(byNameRes.data ?? [])];
+  
+  const seenIds = new Set<string>();
+  const buyers: ProductBuyer[] = [];
+
+  for (const item of rawList) {
+    if (seenIds.has(item.id)) continue;
+    seenIds.add(item.id);
+
+    const sale: any = item.sales;
+    if (!sale) continue;
+    const client: any = sale.clients;
+    const qty = item.quantity ?? 1;
+    const unitPrice = item.unit_price ?? 0;
+
+    buyers.push({
+      id: item.id,
+      sale_id: sale.id,
+      quantity: qty,
+      unit_price: unitPrice,
+      total_price: qty * unitPrice,
+      sale_date: sale.created_at,
+      sale_status: sale.status,
+      client_id: client?.id ?? sale.client_id,
+      client_name: client?.name ?? 'Cliente Desconhecido',
+      client_phone: client?.phone ?? null,
+    });
+  }
+
+  return buyers.sort((a, b) => new Date(b.sale_date).getTime() - new Date(a.sale_date).getTime());
+}
+
+export function useProductBuyers(productId?: string, productName?: string) {
+  return useQuery({
+    queryKey: ['product_buyers', productId, productName],
+    queryFn: () => fetchProductBuyers(productId!, productName),
+    enabled: !!productId,
+  });
+}
+
 export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({

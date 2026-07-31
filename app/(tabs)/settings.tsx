@@ -8,13 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
+import { importBackupFromJSON } from '@/utils/import';
 import { Card } from '@/components/ui/Card';
 
 interface SettingRowProps {
@@ -61,6 +61,7 @@ export default function SettingsScreen() {
   const [user, setUser] = React.useState<string>('');
   const [exportingJSON, setExportingJSON] = useState(false);
   const [exportingCSV, setExportingCSV] = useState(false);
+  const [importingJSON, setImportingJSON] = useState(false);
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -88,6 +89,36 @@ export default function SettingsScreen() {
     } finally {
       setExportingCSV(false);
     }
+  }
+
+  async function handleImportJSON() {
+    Alert.alert(
+      'Restaurar Backup',
+      'Deseja restaurar os dados de um arquivo de backup JSON? Dados existentes com os mesmos IDs serão atualizados.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Restaurar',
+          onPress: async () => {
+            setImportingJSON(true);
+            try {
+              const result = await importBackupFromJSON();
+              if (!result.canceled && result.counts) {
+                const { clients, products, sales, saleItems } = result.counts;
+                Alert.alert(
+                  'Backup Restaurado!',
+                  `Dados restaurados com sucesso:\n\n• ${clients} clientes\n• ${products} produtos\n• ${sales} vendas (${saleItems} itens)`
+                );
+              }
+            } catch (e: any) {
+              Alert.alert('Erro ao restaurar', e.message ?? 'Tente novamente.');
+            } finally {
+              setImportingJSON(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   async function handleLogout() {
@@ -158,11 +189,19 @@ export default function SettingsScreen() {
             />
           </Card>
 
-          {/* Export */}
+          {/* Export & Import */}
           <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
             BACKUP E EXPORTAÇÃO
           </Text>
           <Card style={styles.card} noPadding>
+            <SettingRow
+              icon="cloud-upload-outline"
+              iconColor={colors.warning}
+              label="Restaurar Backup (JSON)"
+              sublabel="Importar clientes, produtos e vendas"
+              onPress={importingJSON ? undefined : handleImportJSON}
+              right={importingJSON ? <ActivityIndicator size="small" color={colors.warning} /> : undefined}
+            />
             <SettingRow
               icon="cloud-download-outline"
               iconColor={colors.success}
@@ -179,25 +218,6 @@ export default function SettingsScreen() {
               onPress={exportingCSV ? undefined : handleExportCSV}
               right={exportingCSV ? <ActivityIndicator size="small" color={colors.info} /> : undefined}
             />
-          </Card>
-
-          {/* About */}
-          <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
-            SOBRE
-          </Text>
-          <Card style={[styles.card, { padding: 18, alignItems: 'center' }]}>
-            <Image
-              source={
-                isDark
-                  ? require('@/assets/images/crm-logo-whiteText-noBG.png')
-                  : require('@/assets/images/crm-logo-dark-noBG.png')
-              }
-              style={{ width: 150, height: 42, marginBottom: 8 }}
-              resizeMode="contain"
-            />
-            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, textAlign: 'center' }}>
-              Versão 1.0.0 • Sistema de Gestão de CRM e Vendas
-            </Text>
           </Card>
 
           {/* Danger */}

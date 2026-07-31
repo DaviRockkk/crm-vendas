@@ -9,6 +9,7 @@ export interface RevenueDataPoint {
   label: string;
   received: number;
   due: number;
+  isCurrentMonth?: boolean;
 }
 
 interface RevenueLineChartProps {
@@ -169,7 +170,9 @@ export function RevenueLineChart({ data, pageSize = 6 }: RevenueLineChartProps) 
     setSelectedIndex(selectedIndex === index ? null : index);
   };
 
-  const activeIndex = selectedIndex !== null ? Math.min(selectedIndex, numPoints - 1) : numPoints - 1;
+  const currentMonthIdx = visibleData.findIndex((d) => d.isCurrentMonth);
+  const defaultIndex = currentMonthIdx !== -1 ? currentMonthIdx : 0;
+  const activeIndex = selectedIndex !== null ? Math.min(selectedIndex, numPoints - 1) : defaultIndex;
   const activeData = visibleData[activeIndex];
   const activeReceivedPt = receivedPoints[activeIndex];
 

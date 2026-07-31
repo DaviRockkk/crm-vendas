@@ -58,6 +58,9 @@ export default function DashboardScreen() {
 
   const MONTH_ABBR = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
+  const now = new Date();
+  const currentMKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
   const revenueChartData: RevenueDataPoint[] = months.map((mKey) => {
     const parts = mKey.split('-');
     const mIdx = parseInt(parts[1], 10) - 1;
@@ -66,6 +69,7 @@ export default function DashboardScreen() {
       label,
       received: stats?.receivedByMonth?.[mKey] ?? 0,
       due: stats?.dueByMonth?.[mKey] ?? 0,
+      isCurrentMonth: mKey === currentMKey,
     };
   });
 
