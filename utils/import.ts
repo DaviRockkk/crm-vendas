@@ -11,38 +11,16 @@ export interface ImportResult {
   };
 }
 
-export async function importBackupFromJSON(): Promise<ImportResult> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Usuário não autenticado.');
-
-  const pickerResult = await DocumentPicker.getDocumentAsync({
-    type: ['application/json', '*/*'],
-    copyToCacheDirectory: true,
-  });
-
-  if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
-    return { canceled: true };
-  }
-
-  const selectedFile = pickerResult.assets[0];
-
-  let fileContent: string;
-  try {
-    const response = await fetch(selectedFile.uri);
-    fileContent = await response.text();
-  } catch (err: any) {
-    throw new Error(`Não foi possível ler o arquivo selecionado: ${err?.message || 'Erro desconhecido'}`);
-  }
-
+export async function parseAndRestoreJSON(fileContent: string, userId: string): Promise<ImportResult['counts']> {
   let parsed: any;
   try {
     parsed = JSON.parse(fileContent);
   } catch {
-    throw new Error('O arquivo selecionado não é um formato JSON válido.');
+    throw new Error('O conteúdo fornecido não é um JSON válido. Verifique se copiou todo o texto.');
   }
 
   if (!parsed || typeof parsed !== 'object' || !parsed.data) {
-    throw new Error('O arquivo selecionado não contém o formato de backup do CRM.');
+    throw new Error('O conteúdo não contém a estrutura de backup do CRM Vendas.');
   }
 
   const { clients = [], products = [], sales = [], sale_items = [] } = parsed.data;
@@ -54,7 +32,7 @@ export async function importBackupFromJSON(): Promise<ImportResult> {
   // 1. Restaurar Clientes
   const clientsToUpsert = clients.map((c: any) => ({
     ...c,
-    user_id: user.id,
+    user_id: userId,
   }));
   if (clientsToUpsert.length > 0) {
     const { error } = await supabase.from('clients').upsert(clientsToUpsert);
@@ -64,7 +42,7 @@ export async function importBackupFromJSON(): Promise<ImportResult> {
   // 2. Restaurar Produtos
   const productsToUpsert = products.map((p: any) => ({
     ...p,
-    user_id: user.id,
+    user_id: userId,
   }));
   if (productsToUpsert.length > 0) {
     const { error } = await supabase.from('products').upsert(productsToUpsert);
@@ -73,11 +51,10 @@ export async function importBackupFromJSON(): Promise<ImportResult> {
 
   // 3. Restaurar Vendas
   const salesToUpsert = sales.map((s: any) => {
-    // Remover propriedades de relacionamentos populados (ex: clients, sale_items) se existirem no JSON
     const { clients: _c, sale_items: _si, ...rest } = s;
     return {
       ...rest,
-      user_id: user.id,
+      user_id: userId,
     };
   });
   if (salesToUpsert.length > 0) {
@@ -96,12 +73,43 @@ export async function importBackupFromJSON(): Promise<ImportResult> {
   }
 
   return {
-    canceled: false,
-    counts: {
-      clients: clientsToUpsert.length,
-      products: productsToUpsert.length,
-      sales: salesToUpsert.length,
-      saleItems: saleItemsToUpsert.length,
-    },
+    clients: clientsToUpsert.length,
+    products: productsToUpsert.length,
+    sales: salesToUpsert.length,
+    saleItems: saleItemsToUpsert.length,
   };
+}
+
+export async function importBackupFromJSON(): Promise<ImportResult> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuário não autenticado.');
+
+  const pickerResult = await DocumentPicker.getDocumentAsync({
+    type: '*/*', // Permite selecionar .json, .txt ou qualquer arquivo no celular
+    copyToCacheDirectory: true,
+  });
+
+  if (pickerResult.canceled || !pickerResult.assets || pickerResult.assets.length === 0) {
+    return { canceled: true };
+  }
+
+  const selectedFile = pickerResult.assets[0];
+
+  let fileContent: string;
+  try {
+    const response = await fetch(selectedFile.uri);
+    fileContent = await response.text();
+  } catch (err: any) {
+    throw new Error(`Não foi possível ler o arquivo selecionado: ${err?.message || 'Erro desconhecido'}`);
+  }
+
+  const counts = await parseAndRestoreJSON(fileContent, user.id);
+  return { canceled: false, counts };
+}
+
+export async function importBackupFromText(rawText: string): Promise<ImportResult['counts']> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuário não autenticado.');
+
+  return await parseAndRestoreJSON(rawText, user.id);
 }

@@ -6,17 +6,19 @@ import {
   StyleSheet,
   Switch,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
-import { importBackupFromJSON } from '@/utils/import';
+import { importBackupFromJSON, importBackupFromText } from '@/utils/import';
 import { confirmAction, showError, showSuccess } from '@/utils/alert';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 
 interface SettingRowProps {
   icon: string;
@@ -64,6 +66,10 @@ export default function SettingsScreen() {
   const [exportingCSV, setExportingCSV] = useState(false);
   const [importingJSON, setImportingJSON] = useState(false);
 
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [restoringText, setRestoringText] = useState(false);
+
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user?.email ?? '');
@@ -92,30 +98,46 @@ export default function SettingsScreen() {
     }
   }
 
-  async function handleImportJSON() {
-    confirmAction({
-      title: 'Restaurar Backup',
-      message: 'Deseja restaurar os dados de um arquivo de backup JSON? Dados existentes com os mesmos IDs serão atualizados.',
-      confirmText: 'Restaurar',
-      type: 'info',
-      onConfirm: async () => {
-        setImportingJSON(true);
-        try {
-          const result = await importBackupFromJSON();
-          if (!result.canceled && result.counts) {
-            const { clients, products, sales, saleItems } = result.counts;
-            showSuccess(
-              'Backup Restaurado!',
-              `Dados restaurados com sucesso:\n\n• ${clients} clientes\n• ${products} produtos\n• ${sales} vendas (${saleItems} itens)`
-            );
-          }
-        } catch (e: any) {
-          showError('Erro ao restaurar', e.message ?? 'Tente novamente.');
-        } finally {
-          setImportingJSON(false);
-        }
-      },
-    });
+  async function handleFileImport() {
+    setShowRestoreModal(false);
+    setImportingJSON(true);
+    try {
+      const result = await importBackupFromJSON();
+      if (!result.canceled && result.counts) {
+        const { clients, products, sales, saleItems } = result.counts;
+        showSuccess(
+          'Backup Restaurado!',
+          `Dados restaurados com sucesso:\n\n• ${clients} clientes\n• ${products} produtos\n• ${sales} vendas (${saleItems} itens)`
+        );
+      }
+    } catch (e: any) {
+      showError('Erro ao restaurar', e.message ?? 'Tente novamente.');
+    } finally {
+      setImportingJSON(false);
+    }
+  }
+
+  async function handleTextImport() {
+    if (!pasteText.trim()) {
+      showError('Atenção', 'Cole o texto do JSON de backup no campo indicado.');
+      return;
+    }
+    setRestoringText(true);
+    try {
+      const counts = await importBackupFromText(pasteText.trim());
+      setShowRestoreModal(false);
+      setPasteText('');
+      if (counts) {
+        showSuccess(
+          'Backup Restaurado!',
+          `Dados restaurados com sucesso:\n\n• ${counts.clients} clientes\n• ${counts.products} produtos\n• ${counts.sales} vendas (${counts.saleItems} itens)`
+        );
+      }
+    } catch (e: any) {
+      showError('Erro ao restaurar', e.message ?? 'Verifique se o texto copiado está completo.');
+    } finally {
+      setRestoringText(false);
+    }
   }
 
   async function handleLogout() {
@@ -193,8 +215,8 @@ export default function SettingsScreen() {
               icon="cloud-upload-outline"
               iconColor={colors.warning}
               label="Restaurar Backup (JSON)"
-              sublabel="Importar clientes, produtos e vendas"
-              onPress={importingJSON ? undefined : handleImportJSON}
+              sublabel="Importar por arquivo ou colar texto"
+              onPress={() => setShowRestoreModal(true)}
               right={importingJSON ? <ActivityIndicator size="small" color={colors.warning} /> : undefined}
             />
             <SettingRow
@@ -230,6 +252,97 @@ export default function SettingsScreen() {
           </Card>
         </View>
       </ScrollView>
+
+      {/* Restore Options Modal */}
+      <Modal visible={showRestoreModal} animationType="slide" presentationStyle="formSheet">
+        <ScrollView contentContainerStyle={[styles.modalContent, { backgroundColor: colors.surface }]}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold }}>
+              Restaurar Backup
+            </Text>
+            <TouchableOpacity onPress={() => setShowRestoreModal(false)}>
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginBottom: 16 }}>
+            Escolha como prefere restaurar seus dados de backup:
+          </Text>
+
+          {/* Option 1: File picker */}
+          <TouchableOpacity
+            style={[
+              styles.optionCard,
+              { backgroundColor: colors.surfaceSecondary, borderColor: colors.border },
+            ]}
+            onPress={handleFileImport}
+          >
+            <View style={[styles.optionIcon, { backgroundColor: colors.primary + '20' }]}>
+              <Ionicons name="folder-open-outline" size={24} color={colors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
+                📁 Escolher Arquivo no Celular
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+                Selecione o arquivo .json ou .txt nos Downloads, WhatsApp ou Drive
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+            <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, marginHorizontal: 12, fontWeight: fontWeight.bold }}>
+              OU
+            </Text>
+            <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
+          </View>
+
+          {/* Option 2: Paste text */}
+          <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold, marginBottom: 6 }}>
+            📋 Colar Texto do Backup (JSON)
+          </Text>
+          <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginBottom: 10 }}>
+            Se o celular não permitir baixar o arquivo, abra o arquivo de backup no celular, copie o texto e cole abaixo:
+          </Text>
+
+          <TextInput
+            style={[
+              styles.pasteInput,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.background,
+                color: colors.text,
+                fontSize: fontSize.sm,
+              },
+            ]}
+            multiline
+            numberOfLines={6}
+            placeholder="Cole o código JSON do backup aqui..."
+            placeholderTextColor={colors.textTertiary}
+            value={pasteText}
+            onChangeText={setPasteText}
+          />
+
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+            <Button
+              label="Restaurar a partir do Texto"
+              onPress={handleTextImport}
+              loading={restoringText}
+              disabled={!pasteText.trim() || restoringText}
+              style={{ flex: 1 }}
+              size="lg"
+            />
+            <Button
+              label="Cancelar"
+              variant="outline"
+              onPress={() => setShowRestoreModal(false)}
+              style={{ flex: 1 }}
+              size="lg"
+            />
+          </View>
+        </ScrollView>
+      </Modal>
     </View>
   );
 }
@@ -284,4 +397,31 @@ const styles = StyleSheet.create({
   rowContent: { flex: 1 },
   label: {},
   sublabel: { marginTop: 2 },
+  modalContent: {
+    padding: 24,
+    paddingTop: 32,
+    flexGrow: 1,
+  },
+  optionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pasteInput: {
+    borderWidth: 1.5,
+    borderRadius: 10,
+    padding: 12,
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
 });
