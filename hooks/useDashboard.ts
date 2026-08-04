@@ -8,16 +8,28 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  // Uma única consulta unificada buscando vendas, nome do cliente e itens da venda
-  const { data, error } = await supabase
-    .from('sales')
-    .select('id, total_amount, paid_amount, due_amount, due_date, status, created_at, installments, client_id, clients(name), sale_items(product_name, quantity)')
-    .order('created_at', { ascending: false });
+  // Consulta buscando vendas, nome do cliente, itens da venda e lista de produtos para mapeamento de ID
+  const [salesRes, productsRes] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('id, total_amount, paid_amount, due_amount, due_date, status, created_at, installments, client_id, clients(name), sale_items(product_id, product_name, quantity)')
+      .order('created_at', { ascending: false }),
+    supabase.from('products').select('id, name'),
+  ]);
 
-  if (error) throw error;
+  if (salesRes.error) throw salesRes.error;
 
-  const allSales = data ?? [];
+  const allSales = salesRes.data ?? [];
+  const allProducts = productsRes.data ?? [];
   const monthlySalesData = allSales.filter((s) => (s.created_at ?? '') >= startOfMonth);
+
+  // Mapeamento auxiliar de nome do produto -> ID
+  const productIdByName: Record<string, string> = {};
+  allProducts.forEach((p: any) => {
+    if (p.name && p.id) {
+      productIdByName[p.name.trim().toLowerCase()] = p.id;
+    }
+  });
 
   // Totais globais
   const totalReceived = allSales.reduce((acc, s) => acc + (s.paid_amount ?? 0), 0);
@@ -52,7 +64,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
       s.total_amount ?? 0,
       s.paid_amount ?? 0,
       s.installments ?? 1,
-      new Date(s.created_at)
+      s.due_date || s.created_at
     );
 
     details.forEach((inst) => {
@@ -84,7 +96,7 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
       s.total_amount ?? 0,
       s.paid_amount ?? 0,
       s.installments ?? 1,
-      new Date(s.created_at)
+      s.due_date || s.created_at
     );
     return details.some((inst) => inst.status !== 'pago' && isOverdue(inst.dueDate));
   };
@@ -102,17 +114,24 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
   ].filter((s) => s.value > 0);
 
   // Top produtos (por quantidade total vendida)
-  const productCount: Record<string, number> = {};
+  const productCount: Record<string, { count: number; product_id: string | null }> = {};
   allSales.forEach((sale: any) => {
     (sale.sale_items ?? []).forEach((item: any) => {
       const name = item.product_name ?? 'Sem nome';
-      productCount[name] = (productCount[name] ?? 0) + (item.quantity ?? 1);
+      const pid = item.product_id || productIdByName[name.trim().toLowerCase()] || null;
+      if (!productCount[name]) {
+        productCount[name] = { count: 0, product_id: pid };
+      }
+      productCount[name].count += (item.quantity ?? 1);
+      if (!productCount[name].product_id && pid) {
+        productCount[name].product_id = pid;
+      }
     });
   });
   const topProducts = Object.entries(productCount)
-    .sort(([, a], [, b]) => b - a)
+    .sort(([, a], [, b]) => b.count - a.count)
     .slice(0, 5)
-    .map(([name, count]) => ({ name, count }));
+    .map(([name, data]) => ({ name, count: data.count, product_id: data.product_id }));
 
   // Top devedores
   const debtByClient: Record<string, { name: string; amount: number; client_id: string }> = {};
@@ -161,6 +180,5 @@ export function useDashboard() {
   return useQuery({
     queryKey: ['dashboard'],
     queryFn: fetchDashboardStats,
-    staleTime: 2 * 60 * 1000, // 2 minutos para o dashboard
   });
 }

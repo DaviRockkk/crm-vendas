@@ -33,42 +33,70 @@ export function getTodayDate(date: Date = new Date()): string {
   return `${year}-${month}-${day}`;
 }
 
-// Retorna o próximo dia 5 no formato YYYY-MM-05 (sempre dia 5 de cada mês)
-export function getDefaultDueDate(referenceDate: Date = new Date()): string {
-  const date = new Date(referenceDate);
-  const currentDay = date.getDate();
-  let targetYear = date.getFullYear();
-  let targetMonth = date.getMonth(); // 0-indexed
+// Retorna o dia 5 do próximo mês no formato YYYY-MM-05 para a 1ª parcela
+export function getDefaultDueDate(referenceDate: Date | string = new Date()): string {
+  const date = typeof referenceDate === 'string'
+    ? new Date(referenceDate + (referenceDate.length === 10 ? 'T12:00:00' : ''))
+    : new Date(referenceDate);
 
-  if (currentDay > 5) {
-    targetMonth += 1;
+  if (isNaN(date.getTime())) {
+    const today = new Date();
+    let targetYear = today.getFullYear();
+    let targetMonth = today.getMonth() + 1;
     if (targetMonth > 11) {
       targetMonth = 0;
       targetYear += 1;
     }
+    const monthStr = String(targetMonth + 1).padStart(2, '0');
+    return `${targetYear}-${monthStr}-05`;
+  }
+
+  let targetYear = date.getFullYear();
+  let targetMonth = date.getMonth() + 1; // Sempre no próximo mês
+
+  if (targetMonth > 11) {
+    targetMonth = 0;
+    targetYear += 1;
   }
 
   const monthStr = String(targetMonth + 1).padStart(2, '0');
   return `${targetYear}-${monthStr}-05`;
 }
 
-// Retorna uma lista de datas de vencimento no dia 5 para N parcelas
-export function getInstallmentDueDates(count: number = 1, referenceDate: Date = new Date()): string[] {
+// Retorna uma lista de datas de vencimento mensais para N parcelas, a partir da data de vencimento da 1ª parcela
+export function getInstallmentDueDates(
+  count: number = 1,
+  referenceDate: Date | string = new Date()
+): string[] {
   const dates: string[] = [];
-  const date = new Date(referenceDate);
-  const currentDay = date.getDate();
-  let startYear = date.getFullYear();
-  let startMonth = date.getMonth();
+  let date: Date;
 
-  if (currentDay > 5) {
-    startMonth += 1;
+  if (typeof referenceDate === 'string') {
+    date = new Date(referenceDate + (referenceDate.length === 10 ? 'T12:00:00' : ''));
+  } else {
+    date = new Date(referenceDate);
   }
 
+  if (isNaN(date.getTime())) {
+    date = new Date();
+  }
+
+  const startDay = date.getDate();
+  const startMonth = date.getMonth();
+  const startYear = date.getFullYear();
+
   for (let i = 0; i < count; i++) {
-    const targetDate = new Date(startYear, startMonth + i, 5);
-    const y = targetDate.getFullYear();
-    const m = String(targetDate.getMonth() + 1).padStart(2, '0');
-    dates.push(`${y}-${m}-05`);
+    const targetMonthTotal = startMonth + i;
+    const targetYear = startYear + Math.floor(targetMonthTotal / 12);
+    const targetMonth = ((targetMonthTotal % 12) + 12) % 12;
+
+    const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+    const day = Math.min(startDay, daysInMonth);
+
+    const y = targetYear;
+    const m = String(targetMonth + 1).padStart(2, '0');
+    const d = String(day).padStart(2, '0');
+    dates.push(`${y}-${m}-${d}`);
   }
 
   return dates;
@@ -89,7 +117,7 @@ export function calculateInstallmentsDetail(
   totalAmount: number,
   paidAmount: number,
   installmentsCount: number = 1,
-  referenceDate: Date = new Date()
+  referenceDate: Date | string = new Date()
 ): InstallmentDetail[] {
   const count = Math.max(1, installmentsCount);
   const dueDates = getInstallmentDueDates(count, referenceDate);

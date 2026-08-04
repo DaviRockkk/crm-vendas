@@ -32,6 +32,13 @@ function AuthGuard({ children, session }: { children: React.ReactNode; session: 
   return <>{children}</>;
 }
 
+import { useRealtimeSync } from '@/hooks/useRealtimeSync';
+
+function RealtimeListener() {
+  useRealtimeSync();
+  return null;
+}
+
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
@@ -69,6 +76,7 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
+        <RealtimeListener />
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <AuthGuard session={session}>
           <Stack screenOptions={{ headerShown: false }}>

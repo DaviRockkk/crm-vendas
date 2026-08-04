@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useProduct, useDeleteProduct, useProductBuyers } from '@/hooks/useProducts';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -18,8 +19,10 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const { data: product, isLoading: isLoadingProduct } = useProduct(id);
-  const { data: buyers = [], isLoading: isLoadingBuyers } = useProductBuyers(id, product?.name);
+  const { data: product, isLoading: isLoadingProduct, refetch: refetchProduct } = useProduct(id);
+  const { data: buyers = [], isLoading: isLoadingBuyers, refetch: refetchBuyers } = useProductBuyers(id, product?.name);
+  useRefreshOnFocus(refetchProduct);
+  useRefreshOnFocus(refetchBuyers);
   const deleteProduct = useDeleteProduct();
 
   if (isLoadingProduct) return <LoadingSpinner fullScreen />;

@@ -56,7 +56,7 @@ export interface DashboardStats {
   receivedByMonth: Record<string, number>;
   dueByMonth: Record<string, number>;
   statusBreakdown: { label: string; value: number; color: string }[];
-  topProducts: { name: string; count: number }[];
+  topProducts: { name: string; count: number; product_id?: string | null }[];
   topDebtors: { name: string; amount: number; client_id: string }[];
 }
 

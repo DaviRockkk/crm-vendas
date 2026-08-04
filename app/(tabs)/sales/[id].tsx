@@ -16,6 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSale, useUpdateSale, useDeleteSale } from '@/hooks/useSales';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -43,7 +44,8 @@ export default function SaleDetailScreen() {
     return () => subscription.remove();
   }, [from, router]);
 
-  const { data: sale, isLoading } = useSale(id);
+  const { data: sale, isLoading, refetch } = useSale(id);
+  useRefreshOnFocus(refetch);
   const updateSale = useUpdateSale();
   const deleteSale = useDeleteSale();
 
@@ -142,7 +144,7 @@ export default function SaleDetailScreen() {
       sale.total_amount,
       sale.paid_amount,
       sale.installments || 1,
-      new Date(sale.created_at)
+      sale.due_date || sale.created_at
     );
 
     let message = `📋 *CRONOGRAMA DE PAGAMENTO*\n`;
@@ -304,7 +306,7 @@ export default function SaleDetailScreen() {
               sale.total_amount,
               sale.paid_amount,
               sale.installments || 1,
-              new Date(sale.created_at)
+              sale.due_date || sale.created_at
             );
 
             return (

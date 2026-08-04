@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useProducts } from '@/hooks/useProducts';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { ProductCard } from '@/components/products/ProductCard';
 import { Header } from '@/components/ui/Header';
@@ -18,6 +19,7 @@ export default function ProductsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: products = [], isLoading, refetch, isRefetching } = useProducts();
+  useRefreshOnFocus(refetch);
 
   const renderItem = useCallback(({ item }: { item: Product }) => (
     <ProductCard product={item} />

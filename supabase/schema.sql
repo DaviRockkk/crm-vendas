@@ -55,6 +55,7 @@ create table public.sale_items (
 
 create index idx_products_user_id on public.products(user_id);
 create index idx_clients_user_id on public.clients(user_id);
+create unique index idx_clients_user_id_phone_clean on public.clients (user_id, regexp_replace(phone, '\D', '', 'g')) where phone is not null and phone != '';
 create index idx_sales_user_id on public.sales(user_id);
 create index idx_sales_client_id on public.sales(client_id);
 create index idx_sales_status on public.sales(status);

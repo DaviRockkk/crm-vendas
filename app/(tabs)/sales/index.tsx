@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSales } from '@/hooks/useSales';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { SaleCard } from '@/components/sales/SaleCard';
 import { Header } from '@/components/ui/Header';
@@ -29,6 +30,7 @@ export default function SalesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: sales = [], isLoading, refetch, isRefetching } = useSales();
+  useRefreshOnFocus(refetch);
   const [filter, setFilter] = useState<FilterType>('todos');
 
   const filtered = sales.filter((s) => {

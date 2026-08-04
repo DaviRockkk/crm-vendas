@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useClients } from '@/hooks/useClients';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { ClientCard } from '@/components/clients/ClientCard';
 import { Header } from '@/components/ui/Header';
@@ -20,6 +21,7 @@ export default function ClientsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: clients = [], isLoading, refetch, isRefetching } = useClients();
+  useRefreshOnFocus(refetch);
 
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('name');

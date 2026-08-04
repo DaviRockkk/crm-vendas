@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useClient, useDeleteClient } from '@/hooks/useClients';
 import { useSalesByClient } from '@/hooks/useSales';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -41,8 +42,10 @@ export default function ClientDetailScreen() {
     return () => subscription.remove();
   }, [from, router]);
 
-  const { data: client, isLoading } = useClient(id);
-  const { data: sales = [] } = useSalesByClient(id);
+  const { data: client, isLoading, refetch: refetchClient } = useClient(id);
+  const { data: sales = [], refetch: refetchSales } = useSalesByClient(id);
+  useRefreshOnFocus(refetchClient);
+  useRefreshOnFocus(refetchSales);
   const deleteClient = useDeleteClient();
 
   if (isLoading) return <LoadingSpinner fullScreen />;
@@ -239,7 +242,7 @@ export default function ClientDetailScreen() {
                 sale.total_amount,
                 sale.paid_amount,
                 sale.installments || 1,
-                new Date(sale.created_at)
+                sale.due_date || sale.created_at
               );
 
               details.forEach((inst) => {

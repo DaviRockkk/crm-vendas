@@ -10,7 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useClient, useCreateClient, useUpdateClient } from '@/hooks/useClients';
+import { useClient, useClients, useCreateClient, useUpdateClient } from '@/hooks/useClients';
 import { useTheme } from '@/hooks/useTheme';
 import { Header } from '@/components/ui/Header';
 import { Input } from '@/components/ui/Input';
@@ -26,6 +26,7 @@ export default function ClientFormScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
+  const { data: clients = [] } = useClients();
   const { data: existing, isLoading: loadingExisting } = useClient(id ?? '');
   const createClient = useCreateClient();
   const updateClient = useUpdateClient();
@@ -52,6 +53,16 @@ export default function ClientFormScreen() {
     if (cleanPhone && cleanPhone.length < 10) {
       showAlert('Atenção', 'Informe um número de telefone válido com DDD (ex: 11 99999-9999).', 'warning');
       return;
+    }
+
+    if (cleanPhone) {
+      const duplicate = clients.find(
+        (c) => c.id !== id && c.phone && c.phone.replace(/\D/g, '') === cleanPhone
+      );
+      if (duplicate) {
+        showAlert('Atenção', `Este número de telefone já está cadastrado para o cliente "${duplicate.name}".`, 'warning');
+        return;
+      }
     }
 
     try {

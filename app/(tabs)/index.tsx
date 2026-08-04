@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart, BarChart } from 'react-native-gifted-charts';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { useTheme } from '@/hooks/useTheme';
 import { StatCard } from '@/components/ui/StatCard';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -29,6 +30,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { data: stats, isLoading, refetch, isRefetching } = useDashboard();
+  useRefreshOnFocus(refetch);
   const [semesterOffset, setSemesterOffset] = useState(0);
 
   if (isLoading) return <LoadingSpinner fullScreen label="Carregando dashboard..." />;
@@ -79,10 +81,19 @@ export default function DashboardScreen() {
     text: s.label,
   }));
 
+  const handleProductPress = (productId?: string | null) => {
+    if (productId) {
+      router.push({ pathname: `/(tabs)/products/${productId}` as any, params: { from: '/(tabs)' } });
+    } else {
+      router.push('/(tabs)/products' as any);
+    }
+  };
+
   const barData = (stats?.topProducts ?? []).map((p) => ({
     value: p.count,
     label: p.name.length > 8 ? p.name.slice(0, 8) + '…' : p.name,
     frontColor: colors.primary,
+    onPress: () => handleProductPress(p.product_id),
   }));
 
   return (
@@ -259,6 +270,10 @@ export default function DashboardScreen() {
                 noOfSections={4}
                 yAxisLabelWidth={28}
                 initialSpacing={12}
+                onPress={(item: any, index: number) => {
+                  const prod = stats?.topProducts[index];
+                  handleProductPress(prod?.product_id);
+                }}
               />
             </View>
           </Card>

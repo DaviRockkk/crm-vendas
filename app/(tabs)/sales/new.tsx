@@ -360,7 +360,6 @@ export default function NewSaleScreen() {
                     ]}
                     onPress={() => {
                       setInstallments(num);
-                      setDueDate(getInstallmentDueDates(num)[0]);
                     }}
                   >
                     <Text
@@ -391,7 +390,7 @@ export default function NewSaleScreen() {
                   totalAmount,
                   parsedPaid,
                   installments,
-                  new Date(createdAt + (createdAt.length === 10 ? 'T12:00:00' : ''))
+                  dueDate || createdAt
                 ).map((inst) => {
                   const isPaid = inst.status === 'pago';
                   const isPartial = inst.status === 'parcial';

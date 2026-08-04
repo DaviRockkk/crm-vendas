@@ -73,9 +73,28 @@ export function useCreateClient() {
   return useMutation({
     mutationFn: async (client: Omit<Client, 'id' | 'created_at' | 'user_id'>) => {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Usuário não autenticado.');
+
+      if (client.phone && client.phone.trim()) {
+        const cleanPhone = client.phone.replace(/\D/g, '');
+        if (cleanPhone) {
+          const { data: existingClients } = await supabase
+            .from('clients')
+            .select('id, name, phone')
+            .eq('user_id', user.id);
+
+          const duplicate = existingClients?.find(
+            (c: any) => c.phone && c.phone.replace(/\D/g, '') === cleanPhone
+          );
+          if (duplicate) {
+            throw new Error(`Este número de telefone já está cadastrado para o cliente "${duplicate.name}".`);
+          }
+        }
+      }
+
       const { data, error } = await supabase
         .from('clients')
-        .insert({ ...client, user_id: user!.id })
+        .insert({ ...client, user_id: user.id })
         .select()
         .single();
       if (error) throw error;
@@ -91,6 +110,27 @@ export function useUpdateClient() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Client> & { id: string }) => {
+      if (updates.phone !== undefined && updates.phone !== null && updates.phone.trim() !== '') {
+        const cleanPhone = updates.phone.replace(/\D/g, '');
+        if (cleanPhone) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Usuário não autenticado.');
+
+          const { data: existingClients } = await supabase
+            .from('clients')
+            .select('id, name, phone')
+            .eq('user_id', user.id)
+            .neq('id', id);
+
+          const duplicate = existingClients?.find(
+            (c: any) => c.phone && c.phone.replace(/\D/g, '') === cleanPhone
+          );
+          if (duplicate) {
+            throw new Error(`Este número de telefone já está cadastrado para o cliente "${duplicate.name}".`);
+          }
+        }
+      }
+
       const { data, error } = await supabase
         .from('clients')
         .update(updates)
