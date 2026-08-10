@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Updates from 'expo-updates';
 import Constants from 'expo-constants';
+import packageJson from '@/package.json';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
@@ -76,15 +77,15 @@ export default function SettingsScreen() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [newUpdateMessage, setNewUpdateMessage] = useState<string | null>(null);
 
-  const currentVersion = Constants.expoConfig?.version ?? '1.1.0';
-  const currentChannel = Updates.channel ?? 'preview';
-  const currentUpdateMessage = (Updates.manifest as any)?.message ?? 'Versão base instalada (APK)';
+  const currentVersion = packageJson.version;
+  const channelTag = Updates.channel ? ` (${Updates.channel})` : '';
+  const currentUpdateMessage = (Updates.manifest as any)?.message || 'Nenhuma nota de versão.';
 
   async function handleCheckForUpdates() {
     setCheckingUpdates(true);
     try {
       if (__DEV__) {
-        showError('Modo Desenvolvedor', 'A verificação de atualizações OTA (EAS Update) está desativada no ambiente de desenvolvimento.');
+        showError('Modo Desenvolvedor', 'A verificação de atualizações está desativada no ambiente de desenvolvimento.');
         setCheckingUpdates(false);
         return;
       }
@@ -294,7 +295,7 @@ export default function SettingsScreen() {
               icon="information-circle-outline"
               iconColor={colors.info}
               label="Versão do Aplicativo"
-              sublabel={`v${currentVersion} (${currentChannel})`}
+              sublabel={`v${currentVersion}${channelTag}`}
             />
             <SettingRow
               icon="git-commit-outline"
@@ -315,8 +316,8 @@ export default function SettingsScreen() {
               <SettingRow
                 icon="refresh-outline"
                 iconColor={colors.primary}
-                label="Buscar Atualizações (EAS Update)"
-                sublabel="Verificar se há novas edições para o canal preview"
+                label="Buscar Atualizações"
+                sublabel="Verificar se há novas atualizações disponíveis"
                 onPress={checkingUpdates ? undefined : handleCheckForUpdates}
                 right={checkingUpdates ? <ActivityIndicator size="small" color={colors.primary} /> : undefined}
               />
