@@ -1,24 +1,43 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
 import { Badge } from '@/components/ui/Badge';
 import type { Sale } from '@/types';
-import { formatCurrency, formatDate, isOverdue, daysUntilDue } from '@/utils/format';
+import { formatCurrency, formatDate, daysUntilDue, getSalePaymentInfo } from '@/utils/format';
 
 interface SaleCardProps {
   sale: Sale;
 }
 
 export function SaleCard({ sale }: SaleCardProps) {
+  const { width: screenWidth } = useWindowDimensions();
   const { colors, radius, fontSize, fontWeight } = useTheme();
   const router = useRouter();
-  const overdue = sale.status !== 'pago' && isOverdue(sale.due_date);
-  const days = daysUntilDue(sale.due_date);
+
+  const isSmallScreen = screenWidth < 380;
+  const isVerySmallScreen = screenWidth < 340;
+
+  const paymentInfo = getSalePaymentInfo(sale);
+  const overdue = paymentInfo.isOverdue;
+  const activeDueDate = overdue
+    ? paymentInfo.overdueDueDate
+    : paymentInfo.nextDueDate || sale.due_date;
+  const days = daysUntilDue(activeDueDate);
 
   const clientName = (sale as any).clients?.name ?? 'Cliente';
   const itemsCount = sale.sale_items?.length ?? 0;
+
+  const amountItemsCount =
+    1 +
+    (sale.paid_amount > 0 ? 1 : 0) +
+    (sale.due_amount > 0 ? 1 : 0) +
+    (activeDueDate && !paymentInfo.isFullyPaid ? 1 : 0);
+
+  const isFewItems = amountItemsCount <= 2;
+  const labelFontSize = isVerySmallScreen ? 9 : isSmallScreen ? 10 : fontSize.xs;
+  const valueFontSize = isVerySmallScreen ? 11 : isSmallScreen ? fontSize.sm : fontSize.base;
 
   return (
     <TouchableOpacity
@@ -48,39 +67,67 @@ export function SaleCard({ sale }: SaleCardProps) {
           >
             {clientName}
           </Text>
-          <Text style={[styles.meta, { color: colors.textSecondary, fontSize: fontSize.sm }]}>
+          <Text style={[styles.meta, { color: colors.textSecondary, fontSize: fontSize.sm }]} numberOfLines={1}>
             {itemsCount} {itemsCount === 1 ? 'item' : 'itens'} · {formatDate(sale.created_at)}
           </Text>
         </View>
 
-        <Badge status={sale.status} />
+        <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} />
       </View>
 
       {/* Amounts */}
-      <View style={[styles.amounts, { borderTopColor: colors.border }]}>
-        <View style={styles.amountItem}>
-          <Text style={[styles.amountLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+      <View
+        style={[
+          styles.amounts,
+          {
+            borderTopColor: colors.border,
+            justifyContent: isFewItems ? 'flex-start' : 'space-between',
+            gap: isFewItems ? (isSmallScreen ? 24 : 32) : isVerySmallScreen ? 4 : isSmallScreen ? 6 : 10,
+          },
+        ]}
+      >
+        <View style={[styles.amountItem, !isFewItems && styles.amountItemFlexible]}>
+          <Text
+            style={[styles.amountLabel, { color: colors.textTertiary, fontSize: labelFontSize }]}
+            numberOfLines={1}
+          >
             TOTAL
           </Text>
-          <Text style={[styles.amountValue, { color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.semibold }]}>
+          <Text
+            style={[styles.amountValue, { color: colors.text, fontSize: valueFontSize, fontWeight: fontWeight.semibold }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
             {formatCurrency(sale.total_amount)}
           </Text>
         </View>
 
         {sale.paid_amount > 0 && (
-          <View style={styles.amountItem}>
-            <Text style={[styles.amountLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+          <View style={[styles.amountItem, !isFewItems && styles.amountItemFlexible]}>
+            <Text
+              style={[styles.amountLabel, { color: colors.textTertiary, fontSize: labelFontSize }]}
+              numberOfLines={1}
+            >
               PAGO
             </Text>
-            <Text style={[styles.amountValue, { color: colors.success, fontSize: fontSize.base, fontWeight: fontWeight.semibold }]}>
+            <Text
+              style={[styles.amountValue, { color: colors.success, fontSize: valueFontSize, fontWeight: fontWeight.semibold }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+            >
               {formatCurrency(sale.paid_amount)}
             </Text>
           </View>
         )}
 
         {sale.due_amount > 0 && (
-          <View style={styles.amountItem}>
-            <Text style={[styles.amountLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+          <View style={[styles.amountItem, !isFewItems && styles.amountItemFlexible]}>
+            <Text
+              style={[styles.amountLabel, { color: colors.textTertiary, fontSize: labelFontSize }]}
+              numberOfLines={1}
+            >
               RESTANTE
             </Text>
             <Text
@@ -88,19 +135,25 @@ export function SaleCard({ sale }: SaleCardProps) {
                 styles.amountValue,
                 {
                   color: overdue ? colors.error : colors.warning,
-                  fontSize: fontSize.base,
+                  fontSize: valueFontSize,
                   fontWeight: fontWeight.bold,
                 },
               ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
             >
               {formatCurrency(sale.due_amount)}
             </Text>
           </View>
         )}
 
-        {sale.due_date && sale.status !== 'pago' && (
-          <View style={styles.amountItem}>
-            <Text style={[styles.amountLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+        {activeDueDate && !paymentInfo.isFullyPaid && (
+          <View style={[styles.amountItem, !isFewItems && styles.amountItemFlexible]}>
+            <Text
+              style={[styles.amountLabel, { color: colors.textTertiary, fontSize: labelFontSize }]}
+              numberOfLines={1}
+            >
               VENCE
             </Text>
             <Text
@@ -108,12 +161,15 @@ export function SaleCard({ sale }: SaleCardProps) {
                 styles.amountValue,
                 {
                   color: overdue ? colors.error : days !== null && days <= 3 ? colors.warning : colors.textSecondary,
-                  fontSize: fontSize.sm,
+                  fontSize: valueFontSize,
                   fontWeight: fontWeight.medium,
                 },
               ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
             >
-              {overdue ? 'Vencido' : formatDate(sale.due_date)}
+              {overdue ? 'Vencido' : formatDate(activeDueDate)}
             </Text>
           </View>
         )}
@@ -158,13 +214,15 @@ const styles = StyleSheet.create({
   meta: {},
   amounts: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     borderTopWidth: 1,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    gap: 16,
   },
   amountItem: {},
+  amountItemFlexible: {
+    flex: 1,
+  },
   amountLabel: {
     letterSpacing: 0.5,
     marginBottom: 2,

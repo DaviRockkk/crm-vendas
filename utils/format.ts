@@ -205,8 +205,10 @@ export function getWhatsAppUrl(phone: string | null | undefined, text?: string):
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     pago: 'Pago',
+    mes_pago: 'Mês pago',
     parcial: 'Parcial',
     pendente: 'Pendente',
+    vencido: 'Vencido',
   };
   return labels[status] ?? status;
 }
@@ -216,13 +218,113 @@ export function getStatusColors(status: string, colors: any): { bg: string; text
   switch (status) {
     case 'pago':
       return { bg: colors.successLight, text: colors.successText };
+    case 'mes_pago':
+      return { bg: colors.infoLight, text: colors.info || colors.primary };
     case 'parcial':
       return { bg: colors.warningLight, text: colors.warningText };
-    case 'pendente':
+    case 'vencido':
       return { bg: colors.errorLight, text: colors.errorText };
+    case 'pendente':
+      return { bg: colors.warningLight, text: colors.warningText };
     default:
       return { bg: colors.surfaceSecondary, text: colors.textSecondary };
   }
+}
+
+export interface SalePaymentInfo {
+  isFullyPaid: boolean;
+  isOverdue: boolean;
+  overdueDueDate: string | null;
+  nextDueDate: string | null;
+  displayStatus: 'pago' | 'vencido' | 'mes_pago' | 'parcial' | 'pendente';
+  displayStatusLabel: string;
+}
+
+// Calcula as informações completas de pagamento e status da venda
+export function getSalePaymentInfo(sale: {
+  total_amount: number;
+  paid_amount: number;
+  installments?: number | null;
+  due_date?: string | null;
+  created_at: string;
+  status?: string;
+}): SalePaymentInfo {
+  const total = Number(sale.total_amount || 0);
+  const paid = Number(sale.paid_amount || 0);
+  const count = Math.max(1, Number(sale.installments || 1));
+  const refDate = sale.due_date || sale.created_at;
+
+  const isFullyPaid = paid >= total - 0.001 || sale.status === 'pago';
+
+  if (isFullyPaid) {
+    return {
+      isFullyPaid: true,
+      isOverdue: false,
+      overdueDueDate: null,
+      nextDueDate: null,
+      displayStatus: 'pago',
+      displayStatusLabel: 'Pago',
+    };
+  }
+
+  const details = calculateInstallmentsDetail(total, paid, count, refDate);
+
+  // Encontra a primeira parcela pendente ou parcial que está vencida
+  const overdueInst = details.find(
+    (inst) => inst.status !== 'pago' && isOverdue(inst.dueDate)
+  );
+
+  const isSaleOverdue = !!overdueInst;
+  const overdueDueDate = overdueInst ? overdueInst.dueDate : null;
+
+  // Encontra a primeira parcela não totalmente paga
+  const firstUnpaidInst = details.find((inst) => inst.status !== 'pago');
+  const nextDueDate = firstUnpaidInst ? firstUnpaidInst.dueDate : null;
+
+  if (isSaleOverdue) {
+    return {
+      isFullyPaid: false,
+      isOverdue: true,
+      overdueDueDate,
+      nextDueDate,
+      displayStatus: 'vencido',
+      displayStatusLabel: 'Vencido',
+    };
+  }
+
+  // Se não está vencida nem 100% paga, mas possui pagamentos:
+  const hasPaidInstallments = details.some((inst) => inst.status === 'pago');
+
+  if (paid > 0) {
+    if (hasPaidInstallments) {
+      return {
+        isFullyPaid: false,
+        isOverdue: false,
+        overdueDueDate: null,
+        nextDueDate,
+        displayStatus: 'mes_pago',
+        displayStatusLabel: 'Mês pago',
+      };
+    } else {
+      return {
+        isFullyPaid: false,
+        isOverdue: false,
+        overdueDueDate: null,
+        nextDueDate,
+        displayStatus: 'parcial',
+        displayStatusLabel: 'Parcial',
+      };
+    }
+  }
+
+  return {
+    isFullyPaid: false,
+    isOverdue: false,
+    overdueDueDate: null,
+    nextDueDate,
+    displayStatus: 'pendente',
+    displayStatusLabel: 'Pendente',
+  };
 }
 
 // Formata número compacto (ex: 1200 → 1,2K)

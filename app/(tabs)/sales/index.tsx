@@ -13,13 +13,14 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { Button } from '@/components/ui/Button';
 import type { Sale, SaleStatus } from '@/types';
-import { isOverdue } from '@/utils/format';
+import { getSalePaymentInfo } from '@/utils/format';
 
-type FilterType = SaleStatus | 'atrasadas' | 'todos';
+type FilterType = SaleStatus | 'mes_pago' | 'atrasadas' | 'todos';
 
 const STATUS_FILTERS: { label: string; value: FilterType }[] = [
   { label: 'Todas', value: 'todos' },
   { label: 'Atrasadas', value: 'atrasadas' },
+  { label: 'Mês pago', value: 'mes_pago' },
   { label: 'Pendente', value: 'pendente' },
   { label: 'Parcial', value: 'parcial' },
   { label: 'Pago', value: 'pago' },
@@ -35,8 +36,9 @@ export default function SalesScreen() {
 
   const filtered = sales.filter((s) => {
     if (filter === 'todos') return true;
-    if (filter === 'atrasadas') return s.status !== 'pago' && isOverdue(s.due_date);
-    return s.status === filter;
+    const info = getSalePaymentInfo(s);
+    if (filter === 'atrasadas') return info.isOverdue;
+    return info.displayStatus === filter;
   });
 
   const renderItem = useCallback(({ item }: { item: Sale }) => (

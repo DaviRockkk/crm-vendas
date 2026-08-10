@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { DashboardStats } from '@/types';
 import { lightColors } from '@/constants/theme';
-import { calculateInstallmentsDetail, isOverdue } from '@/utils/format';
+import { calculateInstallmentsDetail, isOverdue, getSalePaymentInfo } from '@/utils/format';
 
 async function fetchDashboardStats(): Promise<DashboardStats> {
   const now = new Date();
@@ -88,26 +88,37 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
     };
   });
 
-  // Pizza: status breakdown (incluindo Vencido)
-  const isSaleOverdue = (s: any) => {
-    if (s.status === 'pago') return false;
-    if (s.due_date) return isOverdue(s.due_date);
-    const details = calculateInstallmentsDetail(
-      s.total_amount ?? 0,
-      s.paid_amount ?? 0,
-      s.installments ?? 1,
-      s.due_date || s.created_at
-    );
-    return details.some((inst) => inst.status !== 'pago' && isOverdue(inst.dueDate));
-  };
+  // Pizza: status breakdown
+  let pago = 0;
+  let mesPago = 0;
+  let parcial = 0;
+  let pendente = 0;
+  let vencido = 0;
 
-  const pago = allSales.filter((s) => s.status === 'pago').length;
-  const vencido = allSales.filter((s) => isSaleOverdue(s)).length;
-  const parcial = allSales.filter((s) => s.status === 'parcial' && !isSaleOverdue(s)).length;
-  const pendente = allSales.filter((s) => s.status === 'pendente' && !isSaleOverdue(s)).length;
+  allSales.forEach((s) => {
+    const info = getSalePaymentInfo(s);
+    switch (info.displayStatus) {
+      case 'pago':
+        pago += 1;
+        break;
+      case 'mes_pago':
+        mesPago += 1;
+        break;
+      case 'parcial':
+        parcial += 1;
+        break;
+      case 'pendente':
+        pendente += 1;
+        break;
+      case 'vencido':
+        vencido += 1;
+        break;
+    }
+  });
 
   const statusBreakdown = [
     { label: 'Pago', value: pago, color: lightColors.chartGreen },
+    { label: 'Mês Pago', value: mesPago, color: lightColors.chartBlue },
     { label: 'Parcial', value: parcial, color: lightColors.chartCyan },
     { label: 'Pendente', value: pendente, color: lightColors.chartAmber },
     { label: 'Vencido', value: vencido, color: lightColors.chartRed },

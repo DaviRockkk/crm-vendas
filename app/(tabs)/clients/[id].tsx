@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/Badge';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency, formatDate, getWhatsAppUrl, calculateInstallmentsDetail } from '@/utils/format';
+import { formatCurrency, formatDate, getWhatsAppUrl, calculateInstallmentsDetail, isOverdue, getSalePaymentInfo } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { Sale } from '@/types';
 
@@ -193,28 +193,43 @@ export default function ClientDetailScreen() {
             <CardTitle title="Resumo Financeiro" />
             <View style={styles.financialRow}>
               <View style={styles.finItem}>
-                <Text style={[styles.finValue, { color: colors.success, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>
+                <Text
+                  style={[styles.finValue, { color: colors.success, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(totalPaid)}
                 </Text>
-                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]} numberOfLines={1}>
                   Total Pago
                 </Text>
               </View>
               <View style={[styles.finDivider, { backgroundColor: colors.border }]} />
               <View style={styles.finItem}>
-                <Text style={[styles.finValue, { color: totalDue > 0 ? colors.error : colors.textSecondary, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>
+                <Text
+                  style={[styles.finValue, { color: totalDue > 0 ? colors.error : colors.textSecondary, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(totalDue)}
                 </Text>
-                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]} numberOfLines={1}>
                   A Receber
                 </Text>
               </View>
               <View style={[styles.finDivider, { backgroundColor: colors.border }]} />
               <View style={styles.finItem}>
-                <Text style={[styles.finValue, { color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>
+                <Text
+                  style={[styles.finValue, { color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(totalAmount)}
                 </Text>
-                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+                <Text style={[styles.finLabel, { color: colors.textSecondary, fontSize: fontSize.xs }]} numberOfLines={1}>
                   Total Geral
                 </Text>
               </View>
@@ -318,9 +333,22 @@ export default function ClientDetailScreen() {
                   <>
                     <View style={{ gap: 12, marginTop: 4 }}>
                       {monthlyGroups.map((group) => {
+                        const isGroupOverdue = isOverdue(group.dueDate) && group.totalDue > 0;
                         const isPartialInMonth = group.totalPaid > 0 && group.totalDue > 0;
-                        const statusColor = group.percentage >= 100 ? colors.success : isPartialInMonth ? colors.primary : colors.textTertiary;
-                        const statusLabel = group.percentage >= 100 ? 'Quitado ✓' : isPartialInMonth ? `Parcial (${group.percentage.toFixed(0)}%)` : 'Pendente';
+                        const statusColor = group.percentage >= 100
+                          ? colors.success
+                          : isGroupOverdue
+                          ? colors.error
+                          : isPartialInMonth
+                          ? colors.primary
+                          : colors.textTertiary;
+                        const statusLabel = group.percentage >= 100
+                          ? 'Quitado ✓'
+                          : isGroupOverdue
+                          ? 'Vencido'
+                          : isPartialInMonth
+                          ? `Parcial (${group.percentage.toFixed(0)}%)`
+                          : 'Pendente';
 
                         return (
                           <View
@@ -492,36 +520,43 @@ export default function ClientDetailScreen() {
                 }
               />
             ) : (
-              sales.map((sale, i) => (
-                <TouchableOpacity
-                  key={sale.id}
-                  style={[
-                    styles.saleRow,
-                    {
-                      borderTopColor: colors.border,
-                      borderTopWidth: i === 0 ? 0 : 1,
-                    },
-                  ]}
-                  onPress={() => router.push({ pathname: `/(tabs)/sales/${sale.id}` as any, params: { from: `/(tabs)/clients/${id}` } })}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }}>
-                      {formatDate(sale.created_at)}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2 }}>
-                      {sale.sale_items?.length ?? 0} itens
-                      {sale.due_date ? ` · Vence ${formatDate(sale.due_date)}` : ''}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                    <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
-                      {formatCurrency(sale.total_amount)}
-                    </Text>
-                    <Badge status={sale.status} style={{ marginTop: 4 }} />
-                  </View>
-                  <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 8 }} />
-                </TouchableOpacity>
-              ))
+              sales.map((sale, i) => {
+                const paymentInfo = getSalePaymentInfo(sale);
+                const activeDueDate = paymentInfo.isOverdue
+                  ? paymentInfo.overdueDueDate
+                  : paymentInfo.nextDueDate || sale.due_date;
+
+                return (
+                  <TouchableOpacity
+                    key={sale.id}
+                    style={[
+                      styles.saleRow,
+                      {
+                        borderTopColor: colors.border,
+                        borderTopWidth: i === 0 ? 0 : 1,
+                      },
+                    ]}
+                    onPress={() => router.push({ pathname: `/(tabs)/sales/${sale.id}` as any, params: { from: `/(tabs)/clients/${id}` } })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }}>
+                        {formatDate(sale.created_at)}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2 }}>
+                        {sale.sale_items?.length ?? 0} itens
+                        {activeDueDate && !paymentInfo.isFullyPaid ? ` · Vence ${formatDate(activeDueDate)}` : ''}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+                      <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
+                        {formatCurrency(sale.total_amount)}
+                      </Text>
+                      <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} style={{ marginTop: 4 }} />
+                    </View>
+                    <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 8 }} />
+                  </TouchableOpacity>
+                );
+              })
             )}
           </Card>
 

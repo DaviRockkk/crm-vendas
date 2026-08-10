@@ -23,7 +23,7 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, calculateInstallmentsDetail, getWhatsAppUrl } from '@/utils/format';
+import { formatCurrency, formatDate, isOverdue, getStatusLabel, maskCurrency, parseCurrency, calculateInstallmentsDetail, getWhatsAppUrl, getSalePaymentInfo } from '@/utils/format';
 import { confirmAction, showAlert, showError } from '@/utils/alert';
 import type { SaleStatus } from '@/types';
 
@@ -58,7 +58,8 @@ export default function SaleDetailScreen() {
   if (!sale) return null;
 
   const client = (sale as any).clients;
-  const overdue = sale.status !== 'pago' && isOverdue(sale.due_date);
+  const paymentInfo = getSalePaymentInfo(sale);
+  const overdue = paymentInfo.isOverdue;
 
   function openModal() {
     setPaymentMode('add');
@@ -157,10 +158,13 @@ export default function SaleDetailScreen() {
     message += `\n📅 *PARCELAS (${sale.installments || 1}x):*\n`;
 
     installmentDetails.forEach((inst) => {
-      const statusIcon = inst.status === 'pago' ? '✅' : inst.status === 'parcial' ? '🟡' : '⏳';
+      const isInstOverdue = inst.status !== 'pago' && isOverdue(inst.dueDate);
+      const statusIcon = inst.status === 'pago' ? '✅' : isInstOverdue ? '🔴' : inst.status === 'parcial' ? '🟡' : '⏳';
       const statusText =
         inst.status === 'pago'
           ? 'Pago'
+          : isInstOverdue
+          ? 'Vencido'
           : inst.status === 'parcial'
           ? `Parcial (${formatCurrency(inst.paid)})`
           : 'Pendente';
@@ -229,11 +233,11 @@ export default function SaleDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Status Banner */}
-        {overdue && (
+        {overdue && paymentInfo.overdueDueDate && (
           <View style={[styles.banner, { backgroundColor: colors.errorLight }]}>
             <Ionicons name="warning" size={16} color={colors.error} />
             <Text style={{ color: colors.errorText, fontSize: fontSize.sm, fontWeight: fontWeight.semibold, marginLeft: 8 }}>
-              Pagamento vencido em {formatDate(sale.due_date)}
+              Pagamento vencido em {formatDate(paymentInfo.overdueDueDate)}
             </Text>
           </View>
         )}
@@ -250,12 +254,16 @@ export default function SaleDetailScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <Badge status={sale.status} />
+              <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} />
             </View>
 
             <Text style={{ color: colors.textTertiary, fontSize: fontSize.sm }}>
               Criada em {formatDate(sale.created_at)}
-              {sale.due_date ? ` · Vence ${formatDate(sale.due_date)}` : ''}
+              {paymentInfo.nextDueDate
+                ? ` · Próximo vence ${formatDate(paymentInfo.nextDueDate)}`
+                : sale.due_date
+                ? ` · Vence ${formatDate(sale.due_date)}`
+                : ''}
             </Text>
 
             {sale.installments && sale.installments > 1 && (
@@ -271,20 +279,36 @@ export default function SaleDetailScreen() {
 
             <View style={[styles.amountsGrid, { borderTopColor: colors.border, marginTop: 16 }]}>
               <View style={styles.amountCell}>
-                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }}>TOTAL</Text>
-                <Text style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 4 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }} numberOfLines={1}>
+                  TOTAL
+                </Text>
+                <Text
+                  style={{ color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 4 }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(sale.total_amount)}
                 </Text>
               </View>
               <View style={[styles.amountCell, { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
-                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }}>PAGO</Text>
-                <Text style={{ color: colors.success, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 4 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }} numberOfLines={1}>
+                  PAGO
+                </Text>
+                <Text
+                  style={{ color: colors.success, fontSize: fontSize.xl, fontWeight: fontWeight.bold, marginTop: 4 }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(sale.paid_amount)}
                 </Text>
               </View>
               {sale.status !== 'pago' && (
                 <View style={[styles.amountCell, { borderLeftColor: colors.border, borderLeftWidth: 1 }]}>
-                  <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }}>RESTANTE</Text>
+                  <Text style={{ color: colors.textTertiary, fontSize: fontSize.xs, letterSpacing: 0.5 }} numberOfLines={1}>
+                    RESTANTE
+                  </Text>
                   <Text
                     style={{
                       color: sale.due_amount > 0 ? colors.error : colors.success,
@@ -292,6 +316,9 @@ export default function SaleDetailScreen() {
                       fontWeight: fontWeight.bold,
                       marginTop: 4,
                     }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.7}
                   >
                     {formatCurrency(sale.due_amount)}
                   </Text>
@@ -339,9 +366,20 @@ export default function SaleDetailScreen() {
                   {installmentDetails.map((inst) => {
                     const isPaid = inst.status === 'pago';
                     const isPartial = inst.status === 'parcial';
-                    const color = isPaid ? colors.success : isPartial ? colors.primary : colors.textTertiary;
+                    const isInstOverdue = !isPaid && isOverdue(inst.dueDate);
+
+                    const color = isPaid
+                      ? colors.success
+                      : isInstOverdue
+                      ? colors.error
+                      : isPartial
+                      ? colors.primary
+                      : colors.textTertiary;
+
                     const statusLabel = isPaid
                       ? 'Pago ✓'
+                      : isInstOverdue
+                      ? 'Vencido'
                       : isPartial
                       ? `Parcial (${inst.percentage.toFixed(0)}%)`
                       : 'Pendente';
@@ -353,7 +391,13 @@ export default function SaleDetailScreen() {
                           padding: 12,
                           borderRadius: radius.md,
                           backgroundColor: colors.surfaceSecondary,
-                          borderColor: isPaid ? colors.success + '40' : isPartial ? colors.primary + '40' : colors.border,
+                          borderColor: isPaid
+                            ? colors.success + '40'
+                            : isInstOverdue
+                            ? colors.error + '40'
+                            : isPartial
+                            ? colors.primary + '40'
+                            : colors.border,
                           borderWidth: 1,
                         }}
                       >
@@ -361,7 +405,7 @@ export default function SaleDetailScreen() {
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Ionicons
-                              name={isPaid ? 'checkmark-circle' : isPartial ? 'time' : 'ellipse-outline'}
+                              name={isPaid ? 'checkmark-circle' : isInstOverdue ? 'alert-circle' : isPartial ? 'time' : 'ellipse-outline'}
                               size={18}
                               color={color}
                             />
@@ -372,7 +416,13 @@ export default function SaleDetailScreen() {
 
                           <View
                             style={{
-                              backgroundColor: isPaid ? colors.successLight : isPartial ? colors.primaryLight : colors.border + '40',
+                              backgroundColor: isPaid
+                                ? colors.successLight
+                                : isInstOverdue
+                                ? colors.errorLight
+                                : isPartial
+                                ? colors.primaryLight
+                                : colors.border + '40',
                               paddingHorizontal: 8,
                               paddingVertical: 3,
                               borderRadius: radius.full,

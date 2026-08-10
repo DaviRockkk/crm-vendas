@@ -81,7 +81,12 @@ export function ClientCard({ client, totalDue: propTotalDue, totalPaid: propTota
           <Text style={[styles.debtLabel, { color: colors.errorText, fontSize: 9, fontWeight: fontWeight.bold }]}>
             DEVENDO
           </Text>
-          <Text style={[styles.debtAmount, { color: colors.errorText, fontSize: fontSize.xs, fontWeight: fontWeight.extrabold }]}>
+          <Text
+            style={[styles.debtAmount, { color: colors.errorText, fontSize: fontSize.xs, fontWeight: fontWeight.extrabold }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {formatCurrency(due)}
           </Text>
         </View>

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { getStatusColors, getStatusLabel } from '@/utils/format';
 
-type BadgeVariant = 'pago' | 'parcial' | 'pendente' | 'info' | 'default';
+type BadgeVariant = 'pago' | 'mes_pago' | 'parcial' | 'pendente' | 'vencido' | 'info' | 'default';
 
 interface BadgeProps {
   label?: string;
