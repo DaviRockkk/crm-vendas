@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import * as Updates from 'expo-updates';
+import Constants from 'expo-constants';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
@@ -69,6 +71,52 @@ export default function SettingsScreen() {
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [restoringText, setRestoringText] = useState(false);
+
+  const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [newUpdateMessage, setNewUpdateMessage] = useState<string | null>(null);
+
+  const currentVersion = Constants.expoConfig?.version ?? '1.1.0';
+  const currentChannel = Updates.channel ?? 'preview';
+  const currentUpdateMessage = (Updates.manifest as any)?.message ?? 'Versão base instalada (APK)';
+
+  async function handleCheckForUpdates() {
+    setCheckingUpdates(true);
+    try {
+      if (__DEV__) {
+        showError('Modo Desenvolvedor', 'A verificação de atualizações OTA (EAS Update) está desativada no ambiente de desenvolvimento.');
+        setCheckingUpdates(false);
+        return;
+      }
+
+      const update = await Updates.checkForUpdateAsync();
+
+      if (update.isAvailable) {
+        const fetched = await Updates.fetchUpdateAsync();
+        const message = (fetched.manifest as any)?.message || 'Nova atualização baixada com sucesso!';
+        setNewUpdateMessage(message);
+        setUpdateAvailable(true);
+        showSuccess(
+          '🎉 Nova Atualização Baixada!',
+          `O que há de novo:\n\n${message}\n\nClique no botão "Reiniciar e Aplicar" abaixo para carregar a nova versão.`
+        );
+      } else {
+        showSuccess('App Atualizado', 'Nenhuma nova atualização encontrada para este aplicativo.');
+      }
+    } catch (e: any) {
+      showError('Erro ao buscar atualização', e.message ?? 'Não foi possível conectar ao servidor de atualizações.');
+    } finally {
+      setCheckingUpdates(false);
+    }
+  }
+
+  async function handleApplyUpdate() {
+    try {
+      await Updates.reloadAsync();
+    } catch (e: any) {
+      showError('Erro ao reiniciar', e.message ?? 'Não foi possível reiniciar o aplicativo.');
+    }
+  }
 
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -235,6 +283,44 @@ export default function SettingsScreen() {
               onPress={exportingCSV ? undefined : handleExportCSV}
               right={exportingCSV ? <ActivityIndicator size="small" color={colors.info} /> : undefined}
             />
+          </Card>
+
+          {/* Version & Updates */}
+          <Text style={[styles.sectionLabel, { color: colors.textTertiary, fontSize: fontSize.xs }]}>
+            VERSÃO E ATUALIZAÇÕES
+          </Text>
+          <Card style={styles.card} noPadding>
+            <SettingRow
+              icon="information-circle-outline"
+              iconColor={colors.info}
+              label="Versão do Aplicativo"
+              sublabel={`v${currentVersion} (${currentChannel})`}
+            />
+            <SettingRow
+              icon="git-commit-outline"
+              iconColor={colors.primary}
+              label="Update Ativo"
+              sublabel={currentUpdateMessage}
+            />
+            {updateAvailable ? (
+              <SettingRow
+                icon="checkmark-circle-outline"
+                iconColor={colors.success}
+                label="Reiniciar e Aplicar Atualização"
+                sublabel={`Nova versão pronta: ${newUpdateMessage}`}
+                onPress={handleApplyUpdate}
+                right={<Ionicons name="reload-circle" size={24} color={colors.success} />}
+              />
+            ) : (
+              <SettingRow
+                icon="refresh-outline"
+                iconColor={colors.primary}
+                label="Buscar Atualizações (EAS Update)"
+                sublabel="Verificar se há novas edições para o canal preview"
+                onPress={checkingUpdates ? undefined : handleCheckForUpdates}
+                right={checkingUpdates ? <ActivityIndicator size="small" color={colors.primary} /> : undefined}
+              />
+            )}
           </Card>
 
           {/* Danger */}
