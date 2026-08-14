@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAlertStore, AlertType } from '@/store/useAlertStore';
@@ -26,6 +27,7 @@ export function CustomAlertModal() {
     confirmText,
     cancelText = 'Cancelar',
     showCancel = false,
+    notes,
     onConfirm,
     onCancel,
   } = options;
@@ -125,9 +127,23 @@ export function CustomAlertModal() {
                 {title}
               </Text>
               {!!message && (
-                <Text style={[styles.message, { color: colors.textSecondary, fontSize: fontSize.base }]}>
+                <Text style={[styles.message, { color: colors.textSecondary, fontSize: fontSize.base, marginBottom: notes ? 12 : 24 }]}>
                   {message}
                 </Text>
+              )}
+
+              {/* Version / Release Notes Box */}
+              {!!notes && (
+                <View style={[styles.notesBox, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border, borderRadius: radius.md }]}>
+                  <Text style={[styles.notesLabel, { color: colors.primary, fontSize: fontSize.xs, fontWeight: fontWeight.bold }]}>
+                    O QUE HÁ DE NOVO:
+                  </Text>
+                  <ScrollView style={{ maxHeight: 120 }} nestedScrollEnabled>
+                    <Text style={[styles.notesText, { color: colors.text, fontSize: fontSize.sm }]}>
+                      {notes}
+                    </Text>
+                  </ScrollView>
+                </View>
               )}
 
               {/* Actions */}
@@ -216,6 +232,19 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 24,
+  },
+  notesBox: {
+    width: '100%',
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 20,
+  },
+  notesLabel: {
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  notesText: {
+    lineHeight: 18,
   },
   actionsRow: {
     flexDirection: 'row',

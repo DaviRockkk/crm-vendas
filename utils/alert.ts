@@ -1,4 +1,4 @@
-import { useAlertStore, AlertType } from '@/store/useAlertStore';
+import { useAlertStore, AlertType, AlertOptions } from '@/store/useAlertStore';
 
 interface ConfirmOptions {
   title: string;
@@ -35,7 +35,8 @@ export function showAlert(
   title: string,
   message: string,
   type: AlertType = 'warning',
-  onConfirm?: () => void
+  onConfirm?: () => void,
+  extraOptions?: Partial<AlertOptions>
 ) {
   useAlertStore.getState().showAlert({
     title,
@@ -43,6 +44,7 @@ export function showAlert(
     type,
     showCancel: false,
     onConfirm,
+    ...extraOptions,
   });
 }
 

@@ -19,9 +19,40 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { exportAllDataAsJSON, exportAllDataAsCSV } from '@/utils/export';
 import { importBackupFromJSON, importBackupFromText } from '@/utils/import';
-import { confirmAction, showError, showSuccess } from '@/utils/alert';
+import { confirmAction, showError, showSuccess, showAlert } from '@/utils/alert';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+
+const getManifestMessage = (manifestObj: any): string | null => {
+  if (!manifestObj) return null;
+
+  if (typeof manifestObj.message === 'string' && manifestObj.message.trim()) {
+    return manifestObj.message.trim();
+  }
+  if (typeof manifestObj.metadata?.message === 'string' && manifestObj.metadata.message.trim()) {
+    return manifestObj.metadata.message.trim();
+  }
+  if (typeof manifestObj.extra?.message === 'string' && manifestObj.extra.message.trim()) {
+    return manifestObj.extra.message.trim();
+  }
+  if (typeof manifestObj.extra?.eas?.message === 'string' && manifestObj.extra.eas.message.trim()) {
+    return manifestObj.extra.eas.message.trim();
+  }
+  if (
+    typeof manifestObj.extra?.expoClient?.extra?.eas?.message === 'string' &&
+    manifestObj.extra.expoClient.extra.eas.message.trim()
+  ) {
+    return manifestObj.extra.expoClient.extra.eas.message.trim();
+  }
+  if (
+    typeof manifestObj.extra?.expoClient?.description === 'string' &&
+    manifestObj.extra.expoClient.description.trim()
+  ) {
+    return manifestObj.extra.expoClient.description.trim();
+  }
+
+  return null;
+};
 
 interface SettingRowProps {
   icon: string;
@@ -79,7 +110,9 @@ export default function SettingsScreen() {
 
   const currentVersion = packageJson.version;
   const channelTag = Updates.channel ? ` (${Updates.channel})` : '';
-  const currentUpdateMessage = (Updates.manifest as any)?.message || 'Nenhuma nota de versão.';
+
+  const currentManifest = (Updates.manifest as any);
+  const currentUpdateMessage = getManifestMessage(currentManifest) || 'Versão estável atualizada.';
 
   async function handleCheckForUpdates() {
     setCheckingUpdates(true);
@@ -94,15 +127,25 @@ export default function SettingsScreen() {
 
       if (update.isAvailable) {
         const fetched = await Updates.fetchUpdateAsync();
-        const message = (fetched.manifest as any)?.message || 'Nova atualização baixada com sucesso!';
+        const fetchedManifest = fetched?.manifest || (fetched as any)?.manifest || (update as any)?.manifest;
+        const message = getManifestMessage(fetchedManifest) || 'Nova atualização baixada com sucesso!';
         setNewUpdateMessage(message);
         setUpdateAvailable(true);
-        showSuccess(
-          '🎉 Nova Atualização Baixada!',
-          `O que há de novo:\n\n${message}\n\nClique no botão "Reiniciar e Aplicar" abaixo para carregar a nova versão.`
+
+        showAlert(
+          '🎉 Nova Atualização Pronta!',
+          'Uma nova versão do CRM Vendas foi baixada e está pronta para ser aplicada.',
+          'success',
+          handleApplyUpdate,
+          {
+            confirmText: 'Reiniciar e Aplicar',
+            cancelText: 'Mais Tarde',
+            showCancel: true,
+            notes: message,
+          }
         );
       } else {
-        showSuccess('App Atualizado', 'Nenhuma nova atualização encontrada para este aplicativo.');
+        showSuccess('App Atualizado', 'Nenhuma nova atualização encontrada para este aplicativo no momento.');
       }
     } catch (e: any) {
       showError('Erro ao buscar atualização', e.message ?? 'Não foi possível conectar ao servidor de atualizações.');
