@@ -97,12 +97,6 @@ function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boole
                 color={isExpanded ? colors.primary : colors.textSecondary}
               />
             </TouchableOpacity>
-
-            {activeDueDate && !paymentInfo.isFullyPaid && (
-              <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
-                · Vence {formatDate(activeDueDate)}
-              </Text>
-            )}
           </View>
         </View>
 
