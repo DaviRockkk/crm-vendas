@@ -9,6 +9,7 @@ import {
   Alert,
   BackHandler,
   Share,
+  LayoutAnimation,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,7 +37,17 @@ function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boole
   const activeDueDate = paymentInfo.isOverdue
     ? paymentInfo.overdueDueDate
     : paymentInfo.nextDueDate || sale.due_date;
-  const itemsCount = sale.sale_items?.length ?? 0;
+  const itemsCount = Array.isArray(sale?.sale_items) ? sale.sale_items.length : 0;
+
+  const toggleExpand = (e?: any) => {
+    e?.stopPropagation?.();
+    try {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    } catch {
+      // Ignore if layout animation is unavailable
+    }
+    setIsExpanded((prev) => !prev);
+  };
 
   return (
     <View
@@ -67,10 +78,7 @@ function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boole
                 backgroundColor: isExpanded ? colors.primaryLight : colors.surfaceSecondary,
                 borderColor: isExpanded ? colors.primary : colors.border,
               }}
-              onPress={(e) => {
-                e.stopPropagation();
-                setIsExpanded((prev) => !prev);
-              }}
+              onPress={toggleExpand}
               activeOpacity={0.7}
             >
               <Ionicons name="cube-outline" size={12} color={isExpanded ? colors.primary : colors.textSecondary} />
@@ -81,7 +89,7 @@ function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boole
                   fontWeight: fontWeight.semibold,
                 }}
               >
-                {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
+                {itemsCount} {itemsCount === 1 ? 'item comprado' : 'itens comprados'}
               </Text>
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -123,13 +131,16 @@ function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boole
           <Text style={{ color: colors.textTertiary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 0.5, marginBottom: 2 }}>
             ITENS DA VENDA
           </Text>
-          {sale.sale_items && sale.sale_items.length > 0 ? (
-            sale.sale_items.map((item) => {
-              const itemTotal = item.unit_price * item.quantity;
+          {Array.isArray(sale?.sale_items) && sale.sale_items.length > 0 ? (
+            sale.sale_items.map((item, idx) => {
+              const qty = Number(item?.quantity) || 1;
+              const unitPrice = Number(item?.unit_price) || 0;
+              const itemTotal = unitPrice * qty;
+              const name = item?.product_name || 'Produto';
               return (
-                <View key={item.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 }}>
+                <View key={item?.id || idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 }}>
                   <Text style={{ flex: 1, color: colors.text, fontSize: fontSize.sm, marginRight: 8 }} numberOfLines={1}>
-                    • {item.quantity}x {item.product_name}
+                    • {qty}x {name}
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium }}>
                     {formatCurrency(itemTotal)}

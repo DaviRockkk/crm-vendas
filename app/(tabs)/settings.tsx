@@ -77,9 +77,9 @@ export default function SettingsScreen() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [newUpdateMessage, setNewUpdateMessage] = useState<string | null>(null);
 
-  const currentVersion = packageJson.version;
+  const currentVersion = packageJson?.version ?? 'Indisponível';
   const channelTag = Updates.channel ? ` (${Updates.channel})` : '';
-  const currentUpdateMessage = (Updates.manifest as any)?.message || 'Nenhuma nota de versão.';
+  const currentUpdateMessage = (Updates.manifest as any)?.message || (Updates.manifest as any)?.extra?.expoClient?.extra?.eas?.message || 'Nenhuma nota de versão.';
 
   async function handleCheckForUpdates() {
     setCheckingUpdates(true);

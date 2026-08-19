@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useWindowDimensions, LayoutAnimation } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
@@ -17,6 +17,16 @@ export function SaleCard({ sale }: SaleCardProps) {
   const router = useRouter();
   const [isExpanded, setIsExpanded] = React.useState(false);
 
+  const toggleExpand = (e?: any) => {
+    e?.stopPropagation?.();
+    try {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    } catch {
+      // Ignore if layout animation is unavailable
+    }
+    setIsExpanded((prev) => !prev);
+  };
+
   const isSmallScreen = screenWidth < 380;
   const isVerySmallScreen = screenWidth < 340;
 
@@ -28,7 +38,7 @@ export function SaleCard({ sale }: SaleCardProps) {
   const days = daysUntilDue(activeDueDate);
 
   const clientName = (sale as any).clients?.name ?? 'Cliente';
-  const itemsCount = sale.sale_items?.length ?? 0;
+  const itemsCount = Array.isArray(sale?.sale_items) ? sale.sale_items.length : 0;
 
   const amountItemsCount =
     1 +
@@ -80,10 +90,7 @@ export function SaleCard({ sale }: SaleCardProps) {
                   borderColor: isExpanded ? colors.primary : colors.border,
                 },
               ]}
-              onPress={(e) => {
-                e.stopPropagation();
-                setIsExpanded((prev) => !prev);
-              }}
+              onPress={toggleExpand}
               activeOpacity={0.7}
             >
               <Ionicons name="cube-outline" size={12} color={isExpanded ? colors.primary : colors.textSecondary} />
@@ -97,7 +104,7 @@ export function SaleCard({ sale }: SaleCardProps) {
                   },
                 ]}
               >
-                {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
+                {itemsCount} {itemsCount === 1 ? 'item comprado' : 'itens comprados'}
               </Text>
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
@@ -117,13 +124,16 @@ export function SaleCard({ sale }: SaleCardProps) {
           <Text style={[styles.itemsAccordionTitle, { color: colors.textTertiary, fontSize: 10, fontWeight: fontWeight.bold }]}>
             ITENS DA VENDA
           </Text>
-          {sale.sale_items && sale.sale_items.length > 0 ? (
-            sale.sale_items.map((item) => {
-              const itemTotal = item.unit_price * item.quantity;
+          {Array.isArray(sale?.sale_items) && sale.sale_items.length > 0 ? (
+            sale.sale_items.map((item, idx) => {
+              const qty = Number(item?.quantity) || 1;
+              const unitPrice = Number(item?.unit_price) || 0;
+              const itemTotal = unitPrice * qty;
+              const name = item?.product_name || 'Produto';
               return (
-                <View key={item.id} style={styles.itemRow}>
+                <View key={item?.id || idx} style={styles.itemRow}>
                   <Text style={[styles.itemName, { color: colors.text, fontSize: fontSize.sm }]} numberOfLines={1}>
-                    • {item.quantity}x {item.product_name}
+                    • {qty}x {name}
                   </Text>
                   <Text style={[styles.itemPrice, { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium }]}>
                     {formatCurrency(itemTotal)}
