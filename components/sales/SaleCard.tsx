@@ -15,6 +15,7 @@ export function SaleCard({ sale }: SaleCardProps) {
   const { width: screenWidth } = useWindowDimensions();
   const { colors, radius, fontSize, fontWeight } = useTheme();
   const router = useRouter();
+  const [isExpanded, setIsExpanded] = React.useState(false);
 
   const isSmallScreen = screenWidth < 380;
   const isVerySmallScreen = screenWidth < 340;
@@ -67,13 +68,76 @@ export function SaleCard({ sale }: SaleCardProps) {
           >
             {clientName}
           </Text>
-          <Text style={[styles.meta, { color: colors.textSecondary, fontSize: fontSize.sm }]} numberOfLines={1}>
-            {itemsCount} {itemsCount === 1 ? 'item' : 'itens'} · {formatDate(sale.created_at)}
-          </Text>
+          <View style={styles.metaRow}>
+            <Text style={[styles.metaDate, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+              {formatDate(sale.created_at)} ·
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.itemsPill,
+                {
+                  backgroundColor: isExpanded ? colors.primaryLight : colors.surfaceSecondary,
+                  borderColor: isExpanded ? colors.primary : colors.border,
+                },
+              ]}
+              onPress={(e) => {
+                e.stopPropagation();
+                setIsExpanded((prev) => !prev);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cube-outline" size={12} color={isExpanded ? colors.primary : colors.textSecondary} />
+              <Text
+                style={[
+                  styles.itemsPillText,
+                  {
+                    color: isExpanded ? colors.primary : colors.textSecondary,
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.semibold,
+                  },
+                ]}
+              >
+                {itemsCount} {itemsCount === 1 ? 'item' : 'itens'}
+              </Text>
+              <Ionicons
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={12}
+                color={isExpanded ? colors.primary : colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} />
       </View>
+
+      {/* Accordion view when expanded */}
+      {isExpanded && (
+        <View style={[styles.itemsAccordion, { backgroundColor: colors.surfaceSecondary, borderTopColor: colors.border }]}>
+          <Text style={[styles.itemsAccordionTitle, { color: colors.textTertiary, fontSize: 10, fontWeight: fontWeight.bold }]}>
+            ITENS DA VENDA
+          </Text>
+          {sale.sale_items && sale.sale_items.length > 0 ? (
+            sale.sale_items.map((item) => {
+              const itemTotal = item.unit_price * item.quantity;
+              return (
+                <View key={item.id} style={styles.itemRow}>
+                  <Text style={[styles.itemName, { color: colors.text, fontSize: fontSize.sm }]} numberOfLines={1}>
+                    • {item.quantity}x {item.product_name}
+                  </Text>
+                  <Text style={[styles.itemPrice, { color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium }]}>
+                    {formatCurrency(itemTotal)}
+                  </Text>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs, marginTop: 2 }}>
+              Nenhum item detalhado nesta venda.
+            </Text>
+          )}
+        </View>
+      )}
 
       {/* Amounts */}
       <View
@@ -211,7 +275,46 @@ const styles = StyleSheet.create({
   client: {
     marginBottom: 2,
   },
-  meta: {},
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  metaDate: {},
+  itemsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  itemsPillText: {
+    letterSpacing: -0.2,
+  },
+  itemsAccordion: {
+    borderTopWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  itemsAccordionTitle: {
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  itemName: {
+    flex: 1,
+    marginRight: 8,
+  },
+  itemPrice: {},
   amounts: {
     flexDirection: 'row',
     alignItems: 'center',
