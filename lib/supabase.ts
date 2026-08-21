@@ -7,17 +7,19 @@ const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://meyenbogwlm
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_KEY || 'sb_publishable_lBhY6603kbIsxDBunfkc7Q_dQ_A7yLW';
 
 // Wrapper SSR-safe para evitar "window is not defined" no bundler Web / Node.js
+import { Platform } from 'react-native';
+
 const customStorage = {
   getItem: (key: string) => {
-    if (typeof window === 'undefined') return Promise.resolve(null);
+    if (Platform.OS === 'web' && typeof window === 'undefined') return Promise.resolve(null);
     return AsyncStorage.getItem(key);
   },
   setItem: (key: string, value: string) => {
-    if (typeof window === 'undefined') return Promise.resolve();
+    if (Platform.OS === 'web' && typeof window === 'undefined') return Promise.resolve();
     return AsyncStorage.setItem(key, value);
   },
   removeItem: (key: string) => {
-    if (typeof window === 'undefined') return Promise.resolve();
+    if (Platform.OS === 'web' && typeof window === 'undefined') return Promise.resolve();
     return AsyncStorage.removeItem(key);
   },
 };
@@ -25,8 +27,8 @@ const customStorage = {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: customStorage,
-    autoRefreshToken: typeof window !== 'undefined',
-    persistSession: typeof window !== 'undefined',
+    autoRefreshToken: true,
+    persistSession: true,
     detectSessionInUrl: false,
   },
 });
