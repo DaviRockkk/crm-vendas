@@ -23,37 +23,6 @@ import { confirmAction, showError, showSuccess, showAlert } from '@/utils/alert'
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-const getManifestMessage = (manifestObj: any): string | null => {
-  if (!manifestObj) return null;
-
-  if (typeof manifestObj.message === 'string' && manifestObj.message.trim()) {
-    return manifestObj.message.trim();
-  }
-  if (typeof manifestObj.metadata?.message === 'string' && manifestObj.metadata.message.trim()) {
-    return manifestObj.metadata.message.trim();
-  }
-  if (typeof manifestObj.extra?.message === 'string' && manifestObj.extra.message.trim()) {
-    return manifestObj.extra.message.trim();
-  }
-  if (typeof manifestObj.extra?.eas?.message === 'string' && manifestObj.extra.eas.message.trim()) {
-    return manifestObj.extra.eas.message.trim();
-  }
-  if (
-    typeof manifestObj.extra?.expoClient?.extra?.eas?.message === 'string' &&
-    manifestObj.extra.expoClient.extra.eas.message.trim()
-  ) {
-    return manifestObj.extra.expoClient.extra.eas.message.trim();
-  }
-  if (
-    typeof manifestObj.extra?.expoClient?.description === 'string' &&
-    manifestObj.extra.expoClient.description.trim()
-  ) {
-    return manifestObj.extra.expoClient.description.trim();
-  }
-
-  return null;
-};
-
 interface SettingRowProps {
   icon: string;
   iconColor: string;
@@ -106,13 +75,9 @@ export default function SettingsScreen() {
 
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [newUpdateMessage, setNewUpdateMessage] = useState<string | null>(null);
 
   const currentVersion = packageJson.version;
   const channelTag = Updates.channel ? ` (${Updates.channel})` : '';
-
-  const currentManifest = (Updates.manifest as any);
-  const currentUpdateMessage = getManifestMessage(currentManifest) || 'Versão estável atualizada.';
 
   async function handleCheckForUpdates() {
     setCheckingUpdates(true);
@@ -126,29 +91,25 @@ export default function SettingsScreen() {
       const update = await Updates.checkForUpdateAsync();
 
       if (update.isAvailable) {
-        const fetched = await Updates.fetchUpdateAsync();
-        const fetchedManifest = fetched?.manifest || (fetched as any)?.manifest || (update as any)?.manifest;
-        const message = getManifestMessage(fetchedManifest) || 'Nova atualização baixada com sucesso!';
-        setNewUpdateMessage(message);
+        await Updates.fetchUpdateAsync();
         setUpdateAvailable(true);
 
         showAlert(
-          '🎉 Nova Atualização Pronta!',
-          'Uma nova versão do CRM Vendas foi baixada e está pronta para ser aplicada.',
+          'Atualização Disponível',
+          'Uma nova versão foi baixada e está pronta para ser aplicada.',
           'success',
           handleApplyUpdate,
           {
             confirmText: 'Reiniciar e Aplicar',
             cancelText: 'Mais Tarde',
             showCancel: true,
-            notes: message,
           }
         );
       } else {
-        showSuccess('App Atualizado', 'Nenhuma nova atualização encontrada para este aplicativo no momento.');
+        showSuccess('Aplicativo Atualizado', 'Nenhuma nova atualização disponível no momento.');
       }
     } catch (e: any) {
-      showError('Erro ao buscar atualização', e.message ?? 'Não foi possível conectar ao servidor de atualizações.');
+      showError('Erro na Atualização', e.message ?? 'Não foi possível buscar atualizações.');
     } finally {
       setCheckingUpdates(false);
     }
@@ -158,7 +119,7 @@ export default function SettingsScreen() {
     try {
       await Updates.reloadAsync();
     } catch (e: any) {
-      showError('Erro ao reiniciar', e.message ?? 'Não foi possível reiniciar o aplicativo.');
+      showError('Erro ao Reiniciar', e.message ?? 'Não foi possível reiniciar o aplicativo.');
     }
   }
 
@@ -340,18 +301,12 @@ export default function SettingsScreen() {
               label="Versão do Aplicativo"
               sublabel={`v${currentVersion}${channelTag}`}
             />
-            <SettingRow
-              icon="git-commit-outline"
-              iconColor={colors.primary}
-              label="Update Ativo"
-              sublabel={currentUpdateMessage}
-            />
             {updateAvailable ? (
               <SettingRow
                 icon="checkmark-circle-outline"
                 iconColor={colors.success}
                 label="Reiniciar e Aplicar Atualização"
-                sublabel={`Nova versão pronta: ${newUpdateMessage}`}
+                sublabel="Nova versão pronta para instalação"
                 onPress={handleApplyUpdate}
                 right={<Ionicons name="reload-circle" size={24} color={colors.success} />}
               />

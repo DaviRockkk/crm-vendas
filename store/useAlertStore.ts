@@ -9,7 +9,6 @@ export interface AlertOptions {
   confirmText?: string;
   cancelText?: string;
   showCancel?: boolean;
-  notes?: string | null;
   onConfirm?: () => void | Promise<void>;
   onCancel?: () => void;
 }
