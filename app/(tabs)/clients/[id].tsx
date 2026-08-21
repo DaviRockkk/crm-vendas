@@ -9,6 +9,7 @@ import {
   Alert,
   BackHandler,
   Share,
+  LayoutAnimation,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,131 @@ import { Button } from '@/components/ui/Button';
 import { formatCurrency, formatDate, getWhatsAppUrl, calculateInstallmentsDetail, isOverdue, getSalePaymentInfo } from '@/utils/format';
 import { confirmAction } from '@/utils/alert';
 import type { Sale } from '@/types';
+
+function ClientSaleRow({ sale, isFirst, clientId }: { sale: Sale; isFirst: boolean; clientId: string }) {
+  const { colors, fontSize, fontWeight } = useTheme();
+  const router = useRouter();
+  const [isExpanded, setIsExpanded] = React.useState(false);
+
+  const paymentInfo = getSalePaymentInfo(sale);
+  const activeDueDate = paymentInfo.isOverdue
+    ? paymentInfo.overdueDueDate
+    : paymentInfo.nextDueDate || sale.due_date;
+  const itemsCount = Array.isArray(sale?.sale_items) ? sale.sale_items.length : 0;
+
+  const toggleExpand = (e?: any) => {
+    e?.stopPropagation?.();
+    try {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    } catch {
+      // Ignore if layout animation is unavailable
+    }
+    setIsExpanded((prev) => !prev);
+  };
+
+  return (
+    <View
+      style={{
+        borderTopColor: colors.border,
+        borderTopWidth: isFirst ? 0 : 1,
+      }}
+    >
+      <TouchableOpacity
+        style={styles.saleRow}
+        onPress={() => router.push({ pathname: `/(tabs)/sales/${sale.id}` as any, params: { from: `/(tabs)/clients/${clientId}` } })}
+        activeOpacity={0.7}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }}>
+            {formatDate(sale.created_at)}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 12,
+                borderWidth: 1,
+                backgroundColor: isExpanded ? colors.primaryLight : colors.surfaceSecondary,
+                borderColor: isExpanded ? colors.primary : colors.border,
+              }}
+              onPress={toggleExpand}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="cube-outline" size={12} color={isExpanded ? colors.primary : colors.textSecondary} />
+              <Text
+                style={{
+                  color: isExpanded ? colors.primary : colors.textSecondary,
+                  fontSize: fontSize.xs,
+                  fontWeight: fontWeight.semibold,
+                }}
+              >
+                {itemsCount} {itemsCount === 1 ? 'item comprado' : 'itens comprados'}
+              </Text>
+              <Ionicons
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={12}
+                color={isExpanded ? colors.primary : colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
+          <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
+            {formatCurrency(sale.total_amount)}
+          </Text>
+          <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} style={{ marginTop: 4 }} />
+        </View>
+
+        <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 8 }} />
+      </TouchableOpacity>
+
+      {/* Accordion list of sale_items */}
+      {isExpanded && (
+        <View
+          style={{
+            backgroundColor: colors.surfaceSecondary,
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderTopWidth: 1,
+            borderTopColor: colors.borderLight,
+            gap: 4,
+          }}
+        >
+          <Text style={{ color: colors.textTertiary, fontSize: 10, fontWeight: fontWeight.bold, letterSpacing: 0.5, marginBottom: 2 }}>
+            ITENS DA VENDA
+          </Text>
+          {Array.isArray(sale?.sale_items) && sale.sale_items.length > 0 ? (
+            sale.sale_items.map((item, idx) => {
+              const qty = Number(item?.quantity) || 1;
+              const unitPrice = Number(item?.unit_price) || 0;
+              const itemTotal = unitPrice * qty;
+              const name = item?.product_name || 'Produto';
+              return (
+                <View key={item?.id || idx} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 2 }}>
+                  <Text style={{ flex: 1, color: colors.text, fontSize: fontSize.sm, marginRight: 8 }} numberOfLines={1}>
+                    • {qty}x {name}
+                  </Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: fontWeight.medium }}>
+                    {formatCurrency(itemTotal)}
+                  </Text>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.xs }}>
+              Nenhum item detalhado nesta venda.
+            </Text>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
 
 export default function ClientDetailScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -234,6 +360,46 @@ export default function ClientDetailScreen() {
                 </Text>
               </View>
             </View>
+          </Card>
+
+          {/* Sales History (Moved before Unified Installments) */}
+          <Card style={StyleSheet.flatten([styles.card, { padding: 0 }])} noPadding>
+            <View style={{ padding: 16, paddingBottom: 0 }}>
+              <CardTitle
+                title="Histórico de Vendas"
+                subtitle={`${sales.length} venda(s)`}
+                right={
+                  <TouchableOpacity
+                    style={[styles.quickSaleBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
+                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
+                  >
+                    <Ionicons name="add" size={16} color="#FFF" />
+                    <Text style={[styles.quickSaleText, { fontSize: fontSize.xs, fontWeight: fontWeight.semibold }]}>
+                      Nova Venda
+                    </Text>
+                  </TouchableOpacity>
+                }
+              />
+            </View>
+            {sales.length === 0 ? (
+              <EmptyState
+                icon="receipt-outline"
+                title="Sem vendas"
+                description="Este cliente ainda não possui vendas registradas."
+                action={
+                  <Button
+                    label="Registrar Venda para este Cliente"
+                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
+                    size="sm"
+                    style={{ marginTop: 8 }}
+                  />
+                }
+              />
+            ) : (
+              sales.map((sale, i) => (
+                <ClientSaleRow key={sale.id} sale={sale} isFirst={i === 0} clientId={id} />
+              ))
+            )}
           </Card>
 
           {/* Parcelas Unificadas por Mês */}
@@ -475,90 +641,6 @@ export default function ClientDetailScreen() {
               </Card>
             );
           })()}
-
-          {/* Notes */}
-          {client.notes && (
-            <Card style={styles.card}>
-              <CardTitle title="Observações" />
-              <Text style={{ color: colors.text, fontSize: fontSize.base, lineHeight: 22 }}>
-                {client.notes}
-              </Text>
-            </Card>
-          )}
-
-          {/* Sales History */}
-          <Card style={StyleSheet.flatten([styles.card, { padding: 0 }])} noPadding>
-            <View style={{ padding: 16, paddingBottom: 0 }}>
-              <CardTitle
-                title="Histórico de Vendas"
-                subtitle={`${sales.length} venda(s)`}
-                right={
-                  <TouchableOpacity
-                    style={[styles.quickSaleBtn, { backgroundColor: colors.primary, borderRadius: radius.full }]}
-                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
-                  >
-                    <Ionicons name="add" size={16} color="#FFF" />
-                    <Text style={[styles.quickSaleText, { fontSize: fontSize.xs, fontWeight: fontWeight.semibold }]}>
-                      Nova Venda
-                    </Text>
-                  </TouchableOpacity>
-                }
-              />
-            </View>
-            {sales.length === 0 ? (
-              <EmptyState
-                icon="receipt-outline"
-                title="Sem vendas"
-                description="Este cliente ainda não possui vendas registradas."
-                action={
-                  <Button
-                    label="Registrar Venda para este Cliente"
-                    onPress={() => router.push({ pathname: '/(tabs)/sales/new', params: { clientId: id } })}
-                    size="sm"
-                    style={{ marginTop: 8 }}
-                  />
-                }
-              />
-            ) : (
-              sales.map((sale, i) => {
-                const paymentInfo = getSalePaymentInfo(sale);
-                const activeDueDate = paymentInfo.isOverdue
-                  ? paymentInfo.overdueDueDate
-                  : paymentInfo.nextDueDate || sale.due_date;
-
-                return (
-                  <TouchableOpacity
-                    key={sale.id}
-                    style={[
-                      styles.saleRow,
-                      {
-                        borderTopColor: colors.border,
-                        borderTopWidth: i === 0 ? 0 : 1,
-                      },
-                    ]}
-                    onPress={() => router.push({ pathname: `/(tabs)/sales/${sale.id}` as any, params: { from: `/(tabs)/clients/${id}` } })}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.medium }}>
-                        {formatDate(sale.created_at)}
-                      </Text>
-                      <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, marginTop: 2 }}>
-                        {sale.sale_items?.length ?? 0} itens
-                        {activeDueDate && !paymentInfo.isFullyPaid ? ` · Vence ${formatDate(activeDueDate)}` : ''}
-                      </Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-                      <Text style={{ color: colors.text, fontSize: fontSize.base, fontWeight: fontWeight.bold }}>
-                        {formatCurrency(sale.total_amount)}
-                      </Text>
-                      <Badge status={paymentInfo.displayStatus} label={paymentInfo.displayStatusLabel} style={{ marginTop: 4 }} />
-                    </View>
-                    <Ionicons name="chevron-forward" size={14} color={colors.textTertiary} style={{ marginLeft: 8 }} />
-                  </TouchableOpacity>
-                );
-              })
-            )}
-          </Card>
 
 
           {/* Danger Zone */}

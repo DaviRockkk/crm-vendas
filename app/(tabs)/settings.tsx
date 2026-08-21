@@ -76,7 +76,7 @@ export default function SettingsScreen() {
   const [checkingUpdates, setCheckingUpdates] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
 
-  const currentVersion = packageJson.version;
+  const currentVersion = packageJson?.version ?? 'Indisponível';
   const channelTag = Updates.channel ? ` (${Updates.channel})` : '';
 
   async function handleCheckForUpdates() {

@@ -13,7 +13,7 @@ import { useThemeStore } from '@/store/useThemeStore';
 import { CustomAlertModal } from '@/components/ui/CustomAlertModal';
 import type { Session } from '@supabase/supabase-js';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function AuthGuard({ children, session }: { children: React.ReactNode; session: Session | null }) {
   const segments = useSegments();
@@ -45,11 +45,19 @@ export default function RootLayout() {
   const isDark = useThemeStore((s) => s.isDark);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setReady(true);
-      SplashScreen.hideAsync();
-    });
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      })
+      .catch((err) => {
+        console.warn('Erro ao carregar sessão inicial:', err);
+        setSession(null);
+        setReady(true);
+        SplashScreen.hideAsync().catch(() => {});
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);

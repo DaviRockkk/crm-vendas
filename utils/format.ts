@@ -1,9 +1,14 @@
 // Formata valor para moeda BRL
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+export function formatCurrency(value: number | undefined | null): string {
+  const num = typeof value === 'number' && !isNaN(value) ? value : Number(value) || 0;
+  try {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(num);
+  } catch {
+    return `R$ ${num.toFixed(2).replace('.', ',')}`;
+  }
 }
 
 // Mascara dinamica de moeda (ex: digita 3,5,0,0 -> "35,00")

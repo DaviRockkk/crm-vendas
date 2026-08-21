@@ -69,8 +69,10 @@ async function fetchDashboardStats(): Promise<DashboardStats> {
 
     details.forEach((inst) => {
       if (inst.status === 'pago' || inst.remaining <= 0) return;
-      const mKey = inst.dueDate.slice(0, 7);
-      dueByMonth[mKey] = (dueByMonth[mKey] ?? 0) + inst.remaining;
+      const mKey = (inst.dueDate || '').slice(0, 7);
+      if (mKey) {
+        dueByMonth[mKey] = (dueByMonth[mKey] ?? 0) + inst.remaining;
+      }
     });
   });
 
